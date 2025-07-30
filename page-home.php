@@ -383,7 +383,7 @@ a { color:inherit; text-decoration:none; }
 }
 
 .carousel-container { margin-top: 60px; padding: 0; overflow: hidden; position: relative; width: 100vw; }
-.carousel { display: flex; transition: transform 0.7s cubic-bezier(.4,0,.2,1); width: 100vw; touch-action: pan-x; }
+.carousel { display: flex; transition: transform 0.7s cubic-bezier(.4,0,.2,1); width: 100vw; touch-action: pan-y pinch-zoom; }
 .slide {
   min-width: 100vw;
   max-width: 100vw;
@@ -1297,6 +1297,7 @@ let autoScrollCount = 0;
 let autoScrollInterval;
 let isCarouselDragging = false;
 let carouselStartX = 0;
+let carouselStartY = 0;
 let carouselScrollLeft = 0;
 let lastWheelTime = 0;
 let lastUserInteraction = 0;
@@ -1342,15 +1343,24 @@ function smoothScrollToSlide(targetIndex) {
 // Auto-scroll with user interaction respect
 function startAutoScroll() {
     autoScrollInterval = setInterval(() => {
-        // Only auto-scroll if user hasn't interacted recently
-        if (!isUserInteracting && Date.now() - lastUserInteraction > 2000) {
+        // Only auto-scroll if user hasn't interacted recently and autoscroll isn't disabled
+        if (!isUserInteracting && Date.now() - lastUserInteraction > 5000 && autoScrollCount < slideCount) {
             nextSlide();
             autoScrollCount++;
             if (autoScrollCount >= slideCount) {
                 clearInterval(autoScrollInterval);
             }
         }
-    }, 3500);
+    }, 4000);
+}
+
+// Function to stop autoscroll permanently when user interacts
+function stopAutoScroll() {
+    if (autoScrollInterval) {
+        clearInterval(autoScrollInterval);
+        autoScrollInterval = null;
+    }
+    autoScrollCount = slideCount; // Prevent restart
 }
 startAutoScroll();
 
@@ -1361,16 +1371,22 @@ startAutoScroll();
 carousel.addEventListener('touchstart', function(e) {
     isCarouselDragging = true;
     carouselStartX = e.touches[0].clientX;
+    carouselStartY = e.touches[0].clientY;
     
-    // Mark user interaction
+    // Mark user interaction and stop autoscroll
     isUserInteracting = true;
     lastUserInteraction = Date.now();
+    stopAutoScroll();
 });
 
 carousel.addEventListener('touchmove', function(e) {
     if (!isCarouselDragging) return;
     let dx = e.touches[0].clientX - carouselStartX;
-    if (Math.abs(dx) > 50) {
+    let dy = e.touches[0].clientY - (carouselStartY || e.touches[0].clientY);
+    
+    // Only handle horizontal swipes if horizontal movement is greater than vertical
+    if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 50) {
+        e.preventDefault(); // Only prevent default for horizontal swipes
         const scrollDirection = dx > 0 ? -1 : 1;
         const targetIndex = (currentIndex + scrollDirection + slideCount) % slideCount;
         smoothScrollToSlide(targetIndex);
@@ -1381,10 +1397,10 @@ carousel.addEventListener('touchmove', function(e) {
 carousel.addEventListener('touchend', function() { 
     isCarouselDragging = false;
     
-    // Reset user interaction after 3 seconds
+    // Keep user interaction flag for longer to prevent autoscroll restart
     setTimeout(() => {
         isUserInteracting = false;
-    }, 3000);
+    }, 10000);
 });
 
 // Arrow key support for carousel
@@ -1392,6 +1408,7 @@ document.addEventListener('keydown', (e) => {
     if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
         isUserInteracting = true;
         lastUserInteraction = Date.now();
+        stopAutoScroll(); // Stop autoscroll when user uses keyboard
         
         if (e.key === 'ArrowLeft') {
             const targetIndex = (currentIndex - 1 + slideCount) % slideCount;
@@ -1401,11 +1418,24 @@ document.addEventListener('keydown', (e) => {
             smoothScrollToSlide(targetIndex);
         }
         
-        // Reset user interaction after 3 seconds
+        // Keep user interaction flag for longer to prevent autoscroll restart
         setTimeout(() => {
             isUserInteracting = false;
-        }, 3000);
+        }, 10000);
     }
+});
+
+// Mouse click detection for carousel
+carousel.addEventListener('click', function(e) {
+    // Stop autoscroll when user clicks on carousel
+    stopAutoScroll();
+    isUserInteracting = true;
+    lastUserInteraction = Date.now();
+    
+    // Keep user interaction flag for longer
+    setTimeout(() => {
+        isUserInteracting = false;
+    }, 10000);
 });
 
 window.addEventListener('resize', () => goToSlide(currentIndex));
@@ -1660,11 +1690,19 @@ document.querySelectorAll('.scroll-container').forEach(container => {
         e.preventDefault();
     });
 
-    // Only handle horizontal scrolling when shift is held - no wheel listener for posts
-    // This ensures vertical scrolling works normally everywhere
+    // Mouse wheel support for horizontal scrolling (only when shift is held)
+    container.addEventListener('wheel', (e) => {
+        // Only handle horizontal scrolling when shift key is held
+        if (e.shiftKey) {
+            e.preventDefault();
+            container.scrollLeft += e.deltaY * 2;
+        }
+        // Otherwise, allow normal vertical scrolling
+    });
 
     // Enhanced touch events for mobile
     let startTouchX;
+    let startTouchY;
     let isTouching = false;
     let lastTouchX;
     let touchVelocity = 0;
@@ -1674,6 +1712,7 @@ document.querySelectorAll('.scroll-container').forEach(container => {
     container.addEventListener('touchstart', (e) => {
         isTouching = true;
         startTouchX = e.touches[0].clientX;
+        startTouchY = e.touches[0].clientY;
         lastTouchX = startTouchX;
         touchVelocity = 0;
         touchStartTime = Date.now();
@@ -1684,20 +1723,23 @@ document.querySelectorAll('.scroll-container').forEach(container => {
     container.addEventListener('touchmove', (e) => {
         if (!isTouching) return;
         const currentTouchX = e.touches[0].clientX;
+        const currentTouchY = e.touches[0].clientY;
         const currentTime = Date.now();
-        const diff = lastTouchX - currentTouchX;
+        const diffX = lastTouchX - currentTouchX;
+        const diffY = Math.abs(e.touches[0].clientY - startTouchY);
         const timeDiff = currentTime - lastTouchTime;
         
-        // Only prevent default if we're actually scrolling horizontally
-        if (Math.abs(diff) > 5) {
-            e.preventDefault();
+        // Only handle horizontal scrolling if horizontal movement is dominant
+        if (Math.abs(diffX) > diffY && Math.abs(diffX) > 10) {
+            e.preventDefault(); // Prevent vertical scroll only when clearly horizontal
+            
+            if (timeDiff > 0) {
+                touchVelocity = diffX / timeDiff * 20; // Calculate velocity with higher sensitivity
+            }
+            
+            container.scrollLeft += diffX * 2.5; // More responsive touch scrolling
         }
         
-        if (timeDiff > 0) {
-            touchVelocity = diff / timeDiff * 20; // Calculate velocity with higher sensitivity
-        }
-        
-        container.scrollLeft += diff * 2.5; // More responsive touch scrolling
         lastTouchX = currentTouchX;
         lastTouchTime = currentTime;
     });
