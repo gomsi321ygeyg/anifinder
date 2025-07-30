@@ -1,4 +1,87 @@
 <?php
+// Handle AJAX search suggestions
+if (isset($_GET['action']) && $_GET['action'] === 'search_suggestions') {
+    $query = sanitize_text_field($_GET['q']);
+    
+    if (strlen($query) < 2) {
+        wp_die(json_encode([]));
+    }
+    
+    // Get all posts with their titles and tags
+    $all_posts = get_posts([
+        'post_type' => 'post',
+        'post_status' => 'publish',
+        'posts_per_page' => -1,
+        'fields' => 'ids'
+    ]);
+    
+    $suggestions = [];
+    
+    foreach ($all_posts as $post_id) {
+        $post = get_post($post_id);
+        $title = extract_title_from_content($post->post_content) ?: $post->post_title;
+        $content = $post->post_content;
+        $video_url = extract_video_url_from_content($content) ?: '#';
+        
+        // Get post tags
+        $tags = get_the_tags($post_id);
+        $tag_names = $tags ? array_map(function($tag) { return $tag->name; }, $tags) : [];
+        
+        // Calculate relevance score and match position
+        $title_match = stripos($title, $query);
+        $tag_matches = [];
+        
+        foreach ($tag_names as $tag) {
+            $tag_match = stripos($tag, $query);
+            if ($tag_match !== false) {
+                $tag_matches[] = ['tag' => $tag, 'position' => $tag_match];
+            }
+        }
+        
+        // Determine relevance score (lower is better)
+        $relevance_score = 999;
+        $match_type = '';
+        $matched_text = '';
+        
+        if ($title_match !== false) {
+            $relevance_score = $title_match; // Position in title
+            $match_type = 'title';
+            $matched_text = $title;
+        } elseif (!empty($tag_matches)) {
+            // Find the best tag match (earliest position)
+            usort($tag_matches, function($a, $b) {
+                return $a['position'] - $b['position'];
+            });
+            $best_tag_match = $tag_matches[0];
+            $relevance_score = 100 + $best_tag_match['position']; // Tags get lower priority
+            $match_type = 'tag';
+            $matched_text = $best_tag_match['tag'];
+        }
+        
+        if ($relevance_score < 999) {
+            $suggestions[] = [
+                'title' => $title,
+                'url' => $video_url,
+                'relevance' => $relevance_score,
+                'match_type' => $match_type,
+                'matched_text' => $matched_text,
+                'query' => $query
+            ];
+        }
+    }
+    
+    // Sort by relevance (lower score = higher relevance)
+    usort($suggestions, function($a, $b) {
+        return $a['relevance'] - $b['relevance'];
+    });
+    
+    // Limit to top 10 suggestions
+    $suggestions = array_slice($suggestions, 0, 10);
+    
+    header('Content-Type: application/json');
+    wp_die(json_encode($suggestions));
+}
+
 // Handle form submissions
 if (isset($_POST['action']) && $_POST['action'] === 'login') {
     $username = sanitize_text_field($_POST['username']);
@@ -233,6 +316,157 @@ a { color:inherit; text-decoration:none; }
     position: relative;
 }
 
+/* Search Suggestions Dropdown */
+.search-suggestions {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: rgba(34, 32, 69, 0.98);
+    border: 1px solid rgba(178, 164, 248, 0.3);
+    border-top: none;
+    border-radius: 0 0 15px 15px;
+    max-height: 400px;
+    overflow-y: auto;
+    z-index: 1001;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    display: none;
+}
+
+.search-suggestions.active {
+    display: block;
+    animation: suggestionsFadeIn 0.2s ease-out;
+}
+
+@keyframes suggestionsFadeIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.search-suggestion-item {
+    padding: 12px 20px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border-bottom: 1px solid rgba(178, 164, 248, 0.1);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.search-suggestion-item:hover,
+.search-suggestion-item.highlighted {
+    background: rgba(178, 164, 248, 0.1);
+    color: #b2a4f8;
+}
+
+.search-suggestion-item:last-child {
+    border-bottom: none;
+    border-radius: 0 0 15px 15px;
+}
+
+.search-suggestion-item.no-results {
+    opacity: 0.8;
+    cursor: default;
+    font-style: italic;
+}
+
+.search-suggestion-item.no-results:hover {
+    background: rgba(178, 164, 248, 0.05);
+    color: #e8e6f0;
+}
+
+.suggestion-icon {
+    width: 16px;
+    height: 16px;
+    opacity: 0.7;
+    flex-shrink: 0;
+}
+
+.suggestion-text {
+    flex: 1;
+    font-size: 0.95rem;
+    color: #e8e6f0;
+}
+
+.suggestion-match {
+    background: rgba(178, 164, 248, 0.3);
+    color: #fff;
+    font-weight: 600;
+    border-radius: 3px;
+    padding: 1px 3px;
+}
+
+.suggestion-type {
+    font-size: 0.8rem;
+    color: #b2a4f8;
+    opacity: 0.8;
+    flex-shrink: 0;
+}
+
+.search-suggestions::-webkit-scrollbar {
+    width: 6px;
+}
+
+.search-suggestions::-webkit-scrollbar-track {
+    background: rgba(178, 164, 248, 0.1);
+}
+
+.search-suggestions::-webkit-scrollbar-thumb {
+    background: rgba(178, 164, 248, 0.3);
+    border-radius: 3px;
+}
+
+.search-suggestions::-webkit-scrollbar-thumb:hover {
+    background: rgba(178, 164, 248, 0.5);
+}
+
+/* Mobile responsive search suggestions */
+@media (max-width: 768px) {
+    .search-suggestions {
+        max-height: 300px;
+        border-radius: 0 0 12px 12px;
+    }
+    
+    .search-suggestion-item {
+        padding: 10px 15px;
+        gap: 10px;
+    }
+    
+    .suggestion-text {
+        font-size: 0.9rem;
+    }
+    
+    .suggestion-type {
+        font-size: 0.75rem;
+    }
+    
+    .suggestion-icon {
+        width: 14px;
+        height: 14px;
+    }
+}
+
+@media (max-width: 480px) {
+    .search-suggestions {
+        max-height: 250px;
+        border-radius: 0 0 10px 10px;
+    }
+    
+    .search-suggestion-item {
+        padding: 8px 12px;
+        gap: 8px;
+    }
+    
+    .suggestion-text {
+        font-size: 0.85rem;
+    }
+    
+    .suggestion-type {
+        font-size: 0.7rem;
+    }
+}
+
 #search-bar { 
     width: 100%; 
     padding: 12px 20px; 
@@ -249,6 +483,14 @@ a { color:inherit; text-decoration:none; }
     border-color: #b2a4f8; 
     background: rgba(34, 32, 69, 0.95);
     box-shadow: 0 0 0 3px rgba(178, 164, 248, 0.1);
+}
+
+#search-bar:focus + .search-suggestions.active {
+    border-top: 1px solid rgba(178, 164, 248, 0.3);
+}
+
+.search-bar-wrap:has(.search-suggestions.active) #search-bar {
+    border-radius: 25px 25px 0 0;
 }
 
 #search-bar::placeholder {
@@ -1242,6 +1484,7 @@ a { color:inherit; text-decoration:none; }
         <div class="search-container">
             <form method="get" action="" class="search-bar-wrap">
                 <input id="search-bar" name="search" type="text" placeholder="Search..." autocomplete="off" value="<?php echo esc_attr(isset($_GET['search']) ? $_GET['search'] : ''); ?>">
+                <div id="search-suggestions" class="search-suggestions"></div>
             </form>
         </div>
         
@@ -1982,6 +2225,157 @@ document.addEventListener('keydown', (e) => {
         authModal.classList.remove('active');
         document.body.style.overflow = '';
     }
+});
+
+// Intelligent Search Suggestions System
+document.addEventListener('DOMContentLoaded', function() {
+    const searchBar = document.getElementById('search-bar');
+    const suggestionsContainer = document.getElementById('search-suggestions');
+    let currentSuggestions = [];
+    let highlightedIndex = -1;
+    let searchTimeout;
+
+    // Function to highlight matching text
+    function highlightMatch(text, query) {
+        if (!query) return text;
+        const regex = new RegExp(`(${query})`, 'gi');
+        return text.replace(regex, '<span class="suggestion-match">$1</span>');
+    }
+
+    // Function to fetch search suggestions
+    async function fetchSuggestions(query) {
+        if (query.length < 2) {
+            hideSuggestions();
+            return;
+        }
+
+        try {
+            const response = await fetch(`?action=search_suggestions&q=${encodeURIComponent(query)}`);
+            const suggestions = await response.json();
+            displaySuggestions(suggestions, query);
+        } catch (error) {
+            console.error('Error fetching suggestions:', error);
+            hideSuggestions();
+        }
+    }
+
+    // Function to display suggestions
+    function displaySuggestions(suggestions, query) {
+        currentSuggestions = suggestions;
+        highlightedIndex = -1;
+
+        let html = '';
+        
+        if (suggestions.length === 0) {
+            html = `
+                <div class="search-suggestion-item no-results">
+                    <span class="suggestion-icon">🔍</span>
+                    <span class="suggestion-text">No results found for "${query}"</span>
+                    <span class="suggestion-type">Try different keywords</span>
+                </div>
+            `;
+        } else {
+            suggestions.forEach((suggestion, index) => {
+                const icon = suggestion.match_type === 'title' ? '🎬' : '🏷️';
+                const typeText = suggestion.match_type === 'title' ? 'Title' : 'Tag';
+                
+                html += `
+                    <div class="search-suggestion-item" data-index="${index}" data-url="${suggestion.url}">
+                        <span class="suggestion-icon">${icon}</span>
+                        <span class="suggestion-text">${highlightMatch(suggestion.title, query)}</span>
+                        <span class="suggestion-type">${typeText}</span>
+                    </div>
+                `;
+            });
+        }
+
+        suggestionsContainer.innerHTML = html;
+        suggestionsContainer.classList.add('active');
+
+        // Add click listeners to suggestion items (excluding no-results)
+        suggestionsContainer.querySelectorAll('.search-suggestion-item:not(.no-results)').forEach(item => {
+            item.addEventListener('click', function() {
+                const url = this.dataset.url;
+                if (url && url !== '#') {
+                    window.open(url, '_blank', 'noopener');
+                }
+                hideSuggestions();
+            });
+        });
+    }
+
+    // Function to hide suggestions
+    function hideSuggestions() {
+        suggestionsContainer.classList.remove('active');
+        suggestionsContainer.innerHTML = '';
+        currentSuggestions = [];
+        highlightedIndex = -1;
+    }
+
+    // Function to highlight suggestion item
+    function highlightSuggestion(index) {
+        const items = suggestionsContainer.querySelectorAll('.search-suggestion-item');
+        items.forEach(item => item.classList.remove('highlighted'));
+        
+        if (index >= 0 && index < items.length) {
+            items[index].classList.add('highlighted');
+            highlightedIndex = index;
+        }
+    }
+
+    // Search input event listener
+    searchBar.addEventListener('input', function() {
+        const query = this.value.trim();
+        
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => {
+            fetchSuggestions(query);
+        }, 300); // Debounce for 300ms
+    });
+
+    // Keyboard navigation
+    searchBar.addEventListener('keydown', function(e) {
+        const items = suggestionsContainer.querySelectorAll('.search-suggestion-item');
+        
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            highlightedIndex = Math.min(highlightedIndex + 1, items.length - 1);
+            highlightSuggestion(highlightedIndex);
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            highlightedIndex = Math.max(highlightedIndex - 1, -1);
+            highlightSuggestion(highlightedIndex);
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            if (highlightedIndex >= 0 && items[highlightedIndex]) {
+                const url = items[highlightedIndex].dataset.url;
+                if (url && url !== '#') {
+                    window.open(url, '_blank', 'noopener');
+                }
+                hideSuggestions();
+            } else {
+                // Submit search form normally
+                this.closest('form').submit();
+            }
+        } else if (e.key === 'Escape') {
+            hideSuggestions();
+        }
+    });
+
+    // Hide suggestions when clicking outside
+    document.addEventListener('click', function(e) {
+        if (!searchBar.contains(e.target) && !suggestionsContainer.contains(e.target)) {
+            hideSuggestions();
+        }
+    });
+
+    // Show suggestions when focusing on search bar (if there's text)
+    searchBar.addEventListener('focus', function() {
+        const query = this.value.trim();
+        if (query.length >= 2) {
+            fetchSuggestions(query);
+        }
+    });
 });
 
 // Sticky Header Functionality - Always Visible
