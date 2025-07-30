@@ -3,28 +3,34 @@
 if (isset($_GET['action']) && $_GET['action'] === 'search_suggestions') {
     $query = sanitize_text_field($_GET['q']);
     
+    // Debug: Log that endpoint is being called
+    error_log("Search suggestions endpoint called with query: " . $query);
+    
     if (strlen($query) < 2) {
-        wp_die(json_encode([]));
+        header('Content-Type: application/json');
+        echo json_encode([]);
+        exit;
     }
     
     // Get all posts with their titles and tags
     $all_posts = get_posts([
         'post_type' => 'post',
         'post_status' => 'publish',
-        'posts_per_page' => -1,
-        'fields' => 'ids'
+        'posts_per_page' => -1
     ]);
     
     $suggestions = [];
     
-    foreach ($all_posts as $post_id) {
-        $post = get_post($post_id);
+    // Debug: Log the number of posts found
+    error_log("Search suggestions: Found " . count($all_posts) . " posts for query: " . $query);
+    
+    foreach ($all_posts as $post) {
         $title = extract_title_from_content($post->post_content) ?: $post->post_title;
         $content = $post->post_content;
         $video_url = extract_video_url_from_content($content) ?: '#';
         
         // Get post tags
-        $tags = get_the_tags($post_id);
+        $tags = get_the_tags($post->ID);
         $tag_names = $tags ? array_map(function($tag) { return $tag->name; }, $tags) : [];
         
         // Calculate relevance score and match position
@@ -78,7 +84,103 @@ if (isset($_GET['action']) && $_GET['action'] === 'search_suggestions') {
     // Limit to top 10 suggestions
     $suggestions = array_slice($suggestions, 0, 10);
     
+    // Debug: Add a test suggestion if no results found
+    if (empty($suggestions)) {
+        $suggestions[] = [
+            'title' => 'Test suggestion for: ' . $query,
+            'url' => '#',
+            'relevance' => 0,
+            'match_type' => 'title',
+            'matched_text' => 'Test',
+            'query' => $query
+        ];
+    }
+    
     header('Content-Type: application/json');
+    echo json_encode($suggestions);
+    exit;
+}
+
+// WordPress AJAX handlers for search suggestions
+add_action('wp_ajax_search_suggestions', 'handle_search_suggestions_ajax');
+add_action('wp_ajax_nopriv_search_suggestions', 'handle_search_suggestions_ajax');
+
+function handle_search_suggestions_ajax() {
+    $query = sanitize_text_field($_POST['q']);
+    
+    if (strlen($query) < 2) {
+        wp_die(json_encode([]));
+    }
+    
+    // Get all posts with their titles and tags
+    $all_posts = get_posts([
+        'post_type' => 'post',
+        'post_status' => 'publish',
+        'posts_per_page' => -1
+    ]);
+    
+    $suggestions = [];
+    
+    foreach ($all_posts as $post) {
+        $title = extract_title_from_content($post->post_content) ?: $post->post_title;
+        $content = $post->post_content;
+        $video_url = extract_video_url_from_content($content) ?: '#';
+        
+        // Get post tags
+        $tags = get_the_tags($post->ID);
+        $tag_names = $tags ? array_map(function($tag) { return $tag->name; }, $tags) : [];
+        
+        // Calculate relevance score and match position
+        $title_match = stripos($title, $query);
+        $tag_matches = [];
+        
+        foreach ($tag_names as $tag) {
+            $tag_match = stripos($tag, $query);
+            if ($tag_match !== false) {
+                $tag_matches[] = ['tag' => $tag, 'position' => $tag_match];
+            }
+        }
+        
+        // Determine relevance score (lower is better)
+        $relevance_score = 999;
+        $match_type = '';
+        $matched_text = '';
+        
+        if ($title_match !== false) {
+            $relevance_score = $title_match; // Position in title
+            $match_type = 'title';
+            $matched_text = $title;
+        } elseif (!empty($tag_matches)) {
+            // Find the best tag match (earliest position)
+            usort($tag_matches, function($a, $b) {
+                return $a['position'] - $b['position'];
+            });
+            $best_tag_match = $tag_matches[0];
+            $relevance_score = 100 + $best_tag_match['position']; // Tags get lower priority
+            $match_type = 'tag';
+            $matched_text = $best_tag_match['tag'];
+        }
+        
+        if ($relevance_score < 999) {
+            $suggestions[] = [
+                'title' => $title,
+                'url' => $video_url,
+                'relevance' => $relevance_score,
+                'match_type' => $match_type,
+                'matched_text' => $matched_text,
+                'query' => $query
+            ];
+        }
+    }
+    
+    // Sort by relevance (lower score = higher relevance)
+    usort($suggestions, function($a, $b) {
+        return $a['relevance'] - $b['relevance'];
+    });
+    
+    // Limit to top 10 suggestions
+    $suggestions = array_slice($suggestions, 0, 10);
+    
     wp_die(json_encode($suggestions));
 }
 
@@ -2234,6 +2336,37 @@ document.addEventListener('DOMContentLoaded', function() {
     let currentSuggestions = [];
     let highlightedIndex = -1;
     let searchTimeout;
+    let allPosts = []; // Store all posts data for client-side search
+    
+    // Extract posts data from the page
+    function extractPostsData() {
+        const posts = [];
+        
+        // Get posts from all scroll containers
+        document.querySelectorAll('.scroll-item').forEach(item => {
+            const titleElement = item.querySelector('.item-title');
+            const linkElement = item.querySelector('a');
+            
+            if (titleElement && linkElement) {
+                const title = titleElement.textContent.trim();
+                const url = linkElement.href;
+                
+                if (title && url) {
+                    posts.push({
+                        title: title,
+                        url: url,
+                        tags: [] // We'll add tags later if available
+                    });
+                }
+            }
+        });
+        
+        console.log('Extracted posts data:', posts);
+        return posts;
+    }
+    
+    // Initialize posts data
+    allPosts = extractPostsData();
 
     // Function to highlight matching text
     function highlightMatch(text, query) {
@@ -2242,21 +2375,66 @@ document.addEventListener('DOMContentLoaded', function() {
         return text.replace(regex, '<span class="suggestion-match">$1</span>');
     }
 
-    // Function to fetch search suggestions
-    async function fetchSuggestions(query) {
+    // Function to search suggestions from client-side data
+    function fetchSuggestions(query) {
         if (query.length < 2) {
             hideSuggestions();
             return;
         }
 
-        try {
-            const response = await fetch(`?action=search_suggestions&q=${encodeURIComponent(query)}`);
-            const suggestions = await response.json();
-            displaySuggestions(suggestions, query);
-        } catch (error) {
-            console.error('Error fetching suggestions:', error);
-            hideSuggestions();
+        console.log('Searching for:', query, 'in', allPosts.length, 'posts'); // Debug log
+
+        const suggestions = [];
+        
+        allPosts.forEach(post => {
+            const titleMatch = post.title.toLowerCase().indexOf(query.toLowerCase());
+            
+            if (titleMatch !== -1) {
+                // Calculate relevance score (lower is better)
+                const relevance = titleMatch;
+                
+                suggestions.push({
+                    title: post.title,
+                    url: post.url,
+                    relevance: relevance,
+                    match_type: 'title',
+                    matched_text: post.title,
+                    query: query
+                });
+            }
+            
+            // Also check tags if available
+            post.tags.forEach(tag => {
+                const tagMatch = tag.toLowerCase().indexOf(query.toLowerCase());
+                if (tagMatch !== -1) {
+                    suggestions.push({
+                        title: post.title,
+                        url: post.url,
+                        relevance: 100 + tagMatch, // Tags get lower priority
+                        match_type: 'tag',
+                        matched_text: tag,
+                        query: query
+                    });
+                }
+            });
+        });
+        
+        // Sort by relevance (lower score = higher relevance)
+        suggestions.sort((a, b) => a.relevance - b.relevance);
+        
+        // Remove duplicates and limit to 10
+        const uniqueSuggestions = [];
+        const seenUrls = new Set();
+        
+        for (const suggestion of suggestions) {
+            if (!seenUrls.has(suggestion.url) && uniqueSuggestions.length < 10) {
+                seenUrls.add(suggestion.url);
+                uniqueSuggestions.push(suggestion);
+            }
         }
+        
+        console.log('Found suggestions:', uniqueSuggestions); // Debug log
+        displaySuggestions(uniqueSuggestions, query);
     }
 
     // Function to display suggestions
@@ -2330,7 +2508,7 @@ document.addEventListener('DOMContentLoaded', function() {
         clearTimeout(searchTimeout);
         searchTimeout = setTimeout(() => {
             fetchSuggestions(query);
-        }, 300); // Debounce for 300ms
+        }, 200); // Reduced debounce for faster response
     });
 
     // Keyboard navigation
