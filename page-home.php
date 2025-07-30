@@ -382,7 +382,38 @@ a { color:inherit; text-decoration:none; }
     }
 }
 
-.carousel-container { margin-top: 60px; padding: 0; overflow: hidden; position: relative; width: 100vw; }
+.carousel-container { 
+    margin-top: 60px; 
+    padding: 0; 
+    overflow: hidden; 
+    position: relative; 
+    width: 100vw; 
+}
+
+.carousel-container::after {
+    content: 'Hold Shift + drag or scroll to navigate slides manually';
+    position: absolute;
+    bottom: 20px;
+    right: 20px;
+    background: rgba(0, 0, 0, 0.7);
+    color: #b2a4f8;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    opacity: 0.8;
+    pointer-events: none;
+    z-index: 10;
+}
+
+@media (max-width: 768px) {
+    .carousel-container::after {
+        content: 'Swipe horizontally to navigate slides';
+        bottom: 10px;
+        right: 10px;
+        font-size: 0.7rem;
+        padding: 6px 10px;
+    }
+}
 .carousel { display: flex; transition: transform 0.7s cubic-bezier(.4,0,.2,1); width: 100vw; touch-action: pan-y pinch-zoom; }
 .slide {
   min-width: 100vw;
@@ -1364,8 +1395,82 @@ function stopAutoScroll() {
 }
 startAutoScroll();
 
-// Carousel wheel support removed to fix vertical scrolling issues
-// Only touch and arrow key navigation work for carousel now
+// Mouse drag support for carousel
+let carouselMouseDown = false;
+let carouselMouseStartX = 0;
+let carouselInitialTranslate = 0;
+
+carousel.addEventListener('mousedown', function(e) {
+    // Only activate on middle mouse button or when holding shift
+    if (e.button === 1 || e.shiftKey) {
+        carouselMouseDown = true;
+        carouselMouseStartX = e.clientX;
+        carouselInitialTranslate = -currentIndex * 100;
+        carousel.style.cursor = 'grabbing';
+        carousel.style.transition = 'none'; // Disable transition during drag
+        e.preventDefault();
+        
+        // Stop autoscroll
+        stopAutoScroll();
+        isUserInteracting = true;
+        lastUserInteraction = Date.now();
+    }
+});
+
+document.addEventListener('mousemove', function(e) {
+    if (!carouselMouseDown) return;
+    
+    const deltaX = e.clientX - carouselMouseStartX;
+    const deltaPercent = (deltaX / window.innerWidth) * 100;
+    const newTranslate = carouselInitialTranslate + deltaPercent;
+    
+    carousel.style.transform = `translateX(${newTranslate}vw)`;
+});
+
+document.addEventListener('mouseup', function() {
+    if (!carouselMouseDown) return;
+    
+    carouselMouseDown = false;
+    carousel.style.cursor = '';
+    carousel.style.transition = 'transform 0.7s cubic-bezier(.4,0,.2,1)'; // Re-enable transition
+    
+    // Snap to nearest slide
+    const currentTranslate = parseFloat(carousel.style.transform.match(/-?\d+\.?\d*/)[0]);
+    const newIndex = Math.round(Math.abs(currentTranslate) / 100) % slideCount;
+    currentIndex = newIndex;
+    goToSlide(currentIndex);
+    
+    // Keep user interaction flag
+    setTimeout(() => {
+        isUserInteracting = false;
+    }, 10000);
+});
+
+// Mouse wheel support for carousel (with Shift key)
+carousel.addEventListener('wheel', function(e) {
+    if (e.shiftKey) {
+        e.preventDefault();
+        
+        // Stop autoscroll
+        stopAutoScroll();
+        isUserInteracting = true;
+        lastUserInteraction = Date.now();
+        
+        if (e.deltaY > 0) {
+            // Scroll down = next slide
+            const targetIndex = (currentIndex + 1) % slideCount;
+            smoothScrollToSlide(targetIndex);
+        } else {
+            // Scroll up = previous slide
+            const targetIndex = (currentIndex - 1 + slideCount) % slideCount;
+            smoothScrollToSlide(targetIndex);
+        }
+        
+        setTimeout(() => {
+            isUserInteracting = false;
+        }, 10000);
+    }
+});
 
 // Enhanced touch/swipe support with smooth scrolling
 carousel.addEventListener('touchstart', function(e) {
@@ -1382,15 +1487,18 @@ carousel.addEventListener('touchstart', function(e) {
 carousel.addEventListener('touchmove', function(e) {
     if (!isCarouselDragging) return;
     let dx = e.touches[0].clientX - carouselStartX;
-    let dy = e.touches[0].clientY - (carouselStartY || e.touches[0].clientY);
+    let dy = e.touches[0].clientY - carouselStartY;
     
-    // Only handle horizontal swipes if horizontal movement is greater than vertical
-    if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 50) {
-        e.preventDefault(); // Only prevent default for horizontal swipes
-        const scrollDirection = dx > 0 ? -1 : 1;
-        const targetIndex = (currentIndex + scrollDirection + slideCount) % slideCount;
-        smoothScrollToSlide(targetIndex);
-        isCarouselDragging = false;
+    // Check if this is a horizontal swipe
+    if (Math.abs(dx) > Math.abs(dy)) {
+        // Only handle if swipe is significant enough
+        if (Math.abs(dx) > 30) {
+            e.preventDefault(); // Only prevent default for horizontal swipes
+            const scrollDirection = dx > 0 ? -1 : 1;
+            const targetIndex = (currentIndex + scrollDirection + slideCount) % slideCount;
+            smoothScrollToSlide(targetIndex);
+            isCarouselDragging = false;
+        }
     }
 });
 
@@ -1659,31 +1767,41 @@ document.querySelectorAll('.scroll-container').forEach(container => {
     let lastScrollTime = 0;
     let isScrolling = false;
 
-    // Mouse events for desktop
+    // Mouse events for desktop - only activate on middle mouse button or when explicitly dragging
+    let startY;
+    let isDraggingHorizontally = false;
+    
     container.addEventListener('mousedown', (e) => {
-        isDown = true;
-        container.style.cursor = 'grabbing';
-        startX = e.pageX - container.offsetLeft;
-        scrollLeft = container.scrollLeft;
-        cancelAnimationFrame(animationId);
-        isScrolling = true;
-        e.preventDefault();
+        // Only activate horizontal drag on middle mouse button (button 1) or when holding shift
+        if (e.button === 1 || e.shiftKey) {
+            isDown = true;
+            container.style.cursor = 'grabbing';
+            startX = e.pageX - container.offsetLeft;
+            startY = e.pageY - container.offsetTop;
+            scrollLeft = container.scrollLeft;
+            cancelAnimationFrame(animationId);
+            isScrolling = true;
+            isDraggingHorizontally = true;
+            e.preventDefault();
+        }
     });
 
     container.addEventListener('mouseleave', () => {
         isDown = false;
         container.style.cursor = 'grab';
         isScrolling = false;
+        isDraggingHorizontally = false;
     });
 
     container.addEventListener('mouseup', () => {
         isDown = false;
         container.style.cursor = 'grab';
         isScrolling = false;
+        isDraggingHorizontally = false;
     });
 
     container.addEventListener('mousemove', (e) => {
-        if (!isDown) return;
+        if (!isDown || !isDraggingHorizontally) return;
         const x = e.pageX - container.offsetLeft;
         const walk = (x - startX) * 2.5; // More responsive mouse dragging
         container.scrollLeft = scrollLeft - walk;
@@ -1777,10 +1895,10 @@ document.querySelectorAll('.scroll-container').forEach(container => {
     container.style.msOverflowStyle = 'none';
 });
 
-// Arrow key support for horizontal scrolling
+// Arrow key support for horizontal scrolling (only when Shift is held)
 document.addEventListener('keydown', (e) => {
     const activeContainer = document.querySelector('.scroll-container:hover');
-    if (!activeContainer) return;
+    if (!activeContainer || !e.shiftKey) return;
     
     if (e.key === 'ArrowLeft') {
         e.preventDefault();
