@@ -255,6 +255,211 @@ a { color:inherit; text-decoration:none; }
     color: rgba(255, 255, 255, 0.6);
 }
 
+#search-bar {
+    cursor: pointer;
+}
+
+/* Search Overlay Styles */
+.search-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.95);
+    backdrop-filter: blur(10px);
+    z-index: 10000;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.search-overlay.active {
+    opacity: 1;
+    visibility: visible;
+}
+
+.search-overlay-content {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    transform: translateY(-20px);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.search-overlay.active .search-overlay-content {
+    transform: translateY(0);
+}
+
+.search-overlay-header {
+    padding: 80px 40px 40px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.search-overlay-input-container {
+    position: relative;
+    width: 100%;
+    max-width: 800px;
+    display: flex;
+    align-items: center;
+}
+
+#search-overlay-input {
+    width: 100%;
+    padding: 20px 70px 20px 30px;
+    font-size: 2.5rem;
+    background: rgba(255, 255, 255, 0.1);
+    border: 2px solid rgba(178, 164, 248, 0.3);
+    border-radius: 50px;
+    color: #fff;
+    outline: none;
+    transition: all 0.3s ease;
+    backdrop-filter: blur(10px);
+}
+
+#search-overlay-input:focus {
+    border-color: #b2a4f8;
+    background: rgba(255, 255, 255, 0.15);
+    box-shadow: 0 0 0 4px rgba(178, 164, 248, 0.2);
+}
+
+#search-overlay-input::placeholder {
+    color: rgba(255, 255, 255, 0.7);
+    font-weight: 300;
+}
+
+.search-overlay-close {
+    position: absolute;
+    right: 20px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 3rem;
+    cursor: pointer;
+    width: 50px;
+    height: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: all 0.3s ease;
+}
+
+.search-overlay-close:hover {
+    color: #b2a4f8;
+    background: rgba(178, 164, 248, 0.1);
+    transform: translateY(-50%) scale(1.1);
+}
+
+.search-overlay-results {
+    flex: 1;
+    padding: 0 40px 40px;
+    overflow-y: auto;
+}
+
+.search-suggestions {
+    max-width: 800px;
+    margin: 0 auto;
+    opacity: 0;
+    transform: translateY(20px);
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1) 0.1s;
+}
+
+.search-overlay.active .search-suggestions {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.suggestion-category {
+    margin-bottom: 40px;
+}
+
+.suggestion-category h4 {
+    color: #b2a4f8;
+    font-size: 1.2rem;
+    margin-bottom: 15px;
+    font-weight: 600;
+}
+
+.suggestion-items {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.suggestion-item {
+    background: rgba(178, 164, 248, 0.1);
+    color: rgba(255, 255, 255, 0.9);
+    padding: 8px 16px;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border: 1px solid rgba(178, 164, 248, 0.2);
+    font-size: 0.9rem;
+}
+
+.suggestion-item:hover {
+    background: rgba(178, 164, 248, 0.2);
+    border-color: #b2a4f8;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(178, 164, 248, 0.3);
+}
+
+.search-results-content {
+    max-width: 800px;
+    margin: 0 auto;
+    opacity: 0;
+    transform: translateY(20px);
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1) 0.2s;
+}
+
+.search-overlay.active .search-results-content {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .search-overlay-header {
+        padding: 60px 20px 30px;
+    }
+    
+    #search-overlay-input {
+        font-size: 1.8rem;
+        padding: 15px 60px 15px 25px;
+    }
+    
+    .search-overlay-close {
+        font-size: 2.5rem;
+        width: 40px;
+        height: 40px;
+        right: 15px;
+    }
+    
+    .search-overlay-results {
+        padding: 0 20px 30px;
+    }
+}
+
+@media (max-width: 480px) {
+    #search-overlay-input {
+        font-size: 1.5rem;
+        padding: 12px 50px 12px 20px;
+    }
+    
+    .search-overlay-close {
+        font-size: 2rem;
+        width: 35px;
+        height: 35px;
+        right: 12px;
+    }
+}
+
 /* Auth Buttons */
 .auth-btn {
     background: linear-gradient(135deg, #3a2d70, #2a2754);
@@ -1209,9 +1414,9 @@ a { color:inherit; text-decoration:none; }
         </div>
         
         <div class="search-container">
-            <form method="get" action="" class="search-bar-wrap">
-                <input id="search-bar" name="search" type="text" placeholder="Search..." autocomplete="off" value="<?php echo esc_attr(isset($_GET['search']) ? $_GET['search'] : ''); ?>">
-            </form>
+            <div class="search-bar-wrap">
+                <input id="search-bar" type="text" placeholder="Search..." autocomplete="off" readonly>
+            </div>
         </div>
         
         <div class="header-right">
@@ -1219,6 +1424,40 @@ a { color:inherit; text-decoration:none; }
         </div>
     </div>
 </header>
+
+<!-- Search Overlay -->
+<div id="search-overlay" class="search-overlay">
+    <div class="search-overlay-content">
+        <div class="search-overlay-header">
+            <div class="search-overlay-input-container">
+                <input id="search-overlay-input" type="text" placeholder="Search..." autocomplete="off">
+                <button id="search-overlay-close" class="search-overlay-close">&times;</button>
+            </div>
+        </div>
+        <div class="search-overlay-results">
+            <div class="search-suggestions">
+                <div class="suggestion-category">
+                    <h4>Popular Searches</h4>
+                    <div class="suggestion-items">
+                        <span class="suggestion-item">stepmom</span>
+                        <span class="suggestion-item">milf</span>
+                        <span class="suggestion-item">teacher</span>
+                        <span class="suggestion-item">stepsis</span>
+                    </div>
+                </div>
+                <div class="suggestion-category">
+                    <h4>Recent Searches</h4>
+                    <div class="suggestion-items" id="recent-searches">
+                        <!-- Recent searches will be populated by JavaScript -->
+                    </div>
+                </div>
+            </div>
+            <div class="search-results-content" id="search-results-content">
+                <!-- Search results will be populated here -->
+            </div>
+        </div>
+    </div>
+</div>
 
 <div id="overlay"></div>
 <div id="mobilemenu">
@@ -1843,6 +2082,162 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initial check
     updateHeader();
 });
+
+// Search Overlay Functionality
+document.addEventListener('DOMContentLoaded', function() {
+    const searchBar = document.getElementById('search-bar');
+    const searchOverlay = document.getElementById('search-overlay');
+    const searchOverlayInput = document.getElementById('search-overlay-input');
+    const searchOverlayClose = document.getElementById('search-overlay-close');
+    const suggestionItems = document.querySelectorAll('.suggestion-item');
+    const recentSearchesContainer = document.getElementById('recent-searches');
+    const searchResultsContent = document.getElementById('search-results-content');
+
+    // Recent searches functionality
+    let recentSearches = JSON.parse(localStorage.getItem('recentSearches') || '[]');
+    
+    function updateRecentSearches() {
+        recentSearchesContainer.innerHTML = '';
+        recentSearches.slice(0, 5).forEach(search => {
+            const span = document.createElement('span');
+            span.className = 'suggestion-item';
+            span.textContent = search;
+            span.addEventListener('click', () => performSearch(search));
+            recentSearchesContainer.appendChild(span);
+        });
+    }
+    
+    function addToRecentSearches(query) {
+        if (query.trim() && !recentSearches.includes(query.trim())) {
+            recentSearches.unshift(query.trim());
+            recentSearches = recentSearches.slice(0, 10); // Keep only last 10
+            localStorage.setItem('recentSearches', JSON.stringify(recentSearches));
+            updateRecentSearches();
+        }
+    }
+    
+    // Initialize recent searches
+    updateRecentSearches();
+
+    // Open search overlay
+    function openSearchOverlay() {
+        searchOverlay.classList.add('active');
+        document.body.style.overflow = 'hidden';
+        
+        // Focus input after animation starts
+        setTimeout(() => {
+            searchOverlayInput.focus();
+        }, 100);
+    }
+
+    // Close search overlay
+    function closeSearchOverlay() {
+        searchOverlay.classList.remove('active');
+        document.body.style.overflow = '';
+        searchOverlayInput.value = '';
+        clearSearchResults();
+    }
+
+    // Clear search results
+    function clearSearchResults() {
+        searchResultsContent.innerHTML = '';
+    }
+
+    // Perform search
+    function performSearch(query) {
+        if (!query.trim()) return;
+        
+        addToRecentSearches(query);
+        
+        // Show loading state
+        searchResultsContent.innerHTML = `
+            <div style="text-align: center; padding: 40px; color: rgba(255, 255, 255, 0.7);">
+                <div style="font-size: 1.2rem; margin-bottom: 10px;">Searching for "${query}"...</div>
+                <div style="width: 40px; height: 40px; border: 3px solid rgba(178, 164, 248, 0.3); border-top: 3px solid #b2a4f8; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto;"></div>
+            </div>
+        `;
+        
+        // Simulate search delay and redirect (replace with actual search logic)
+        setTimeout(() => {
+            // For now, we'll redirect to the search page with the query
+            window.location.href = `/search?q=${encodeURIComponent(query)}`;
+        }, 500);
+    }
+
+    // Event listeners
+    searchBar.addEventListener('click', function(e) {
+        e.preventDefault();
+        openSearchOverlay();
+    });
+
+    searchOverlayClose.addEventListener('click', closeSearchOverlay);
+
+    // Close on overlay background click
+    searchOverlay.addEventListener('click', function(e) {
+        if (e.target === searchOverlay) {
+            closeSearchOverlay();
+        }
+    });
+
+    // Escape key to close
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && searchOverlay.classList.contains('active')) {
+            closeSearchOverlay();
+        }
+    });
+
+    // Search input handling
+    searchOverlayInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            performSearch(this.value);
+        }
+    });
+
+    // Real-time search (optional - you can enable this for live search)
+    let searchTimeout;
+    searchOverlayInput.addEventListener('input', function() {
+        const query = this.value.trim();
+        
+        clearTimeout(searchTimeout);
+        
+        if (query.length >= 2) {
+            searchTimeout = setTimeout(() => {
+                // Implement live search here if needed
+                // For now, we'll just show a preview
+                searchResultsContent.innerHTML = `
+                    <div style="color: rgba(255, 255, 255, 0.8); padding: 20px; text-align: center;">
+                        <div style="margin-bottom: 15px;">Press Enter to search for "${query}"</div>
+                        <div style="font-size: 0.9rem; color: rgba(255, 255, 255, 0.6);">
+                            Or click on a suggestion above
+                        </div>
+                    </div>
+                `;
+            }, 300);
+        } else {
+            clearSearchResults();
+        }
+    });
+
+    // Suggestion items click handlers
+    suggestionItems.forEach(item => {
+        item.addEventListener('click', function() {
+            const query = this.textContent;
+            searchOverlayInput.value = query;
+            performSearch(query);
+        });
+    });
+});
+
+// Add loading animation CSS
+const style = document.createElement('style');
+style.textContent = `
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+`;
+document.head.appendChild(style);
 </script>
 
 <!-- Login/Signup Modal -->
