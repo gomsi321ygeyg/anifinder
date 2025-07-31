@@ -1005,10 +1005,8 @@ a { color:inherit; text-decoration:none; }
     overflow-x: auto;
     scroll-behavior: smooth;
     padding: 10px 0;
-    cursor: grab;
     scrollbar-width: none;
     -ms-overflow-style: none;
-    user-select: none;
     -webkit-overflow-scrolling: touch;
     scroll-snap-type: x mandatory;
     width: 100%;
@@ -1628,7 +1626,7 @@ a { color:inherit; text-decoration:none; }
         
         <div class="search-container">
             <form method="get" action="" class="search-bar-wrap">
-                <input id="search-bar" name="search" type="text" placeholder="Click to search all posts..." autocomplete="off" value="<?php echo esc_attr(isset($_GET['search']) ? $_GET['search'] : ''); ?>">
+                <input id="search-bar" name="search" type="text" placeholder="Search..." autocomplete="off" value="<?php echo esc_attr(isset($_GET['search']) ? $_GET['search'] : ''); ?>">
                 <div id="search-suggestions" class="search-suggestions"></div>
             </form>
         </div>
@@ -2155,14 +2153,16 @@ document.querySelectorAll('.scroll-container').forEach(container => {
     let lastScrollTime = 0;
     let isScrolling = false;
 
-    // Mouse events for desktop - only activate on middle mouse button or when explicitly dragging
+    // Mouse events for desktop - ONLY for explicit horizontal dragging
     let startY;
     let isDraggingHorizontally = false;
+    let dragStarted = false;
     
     container.addEventListener('mousedown', (e) => {
-        // Only activate horizontal drag on middle mouse button (button 1) or when holding shift
+        // Only activate on explicit drag intent (middle button or shift+drag)
         if (e.button === 1 || e.shiftKey) {
             isDown = true;
+            dragStarted = true;
             container.style.cursor = 'grabbing';
             startX = e.pageX - container.offsetLeft;
             startY = e.pageY - container.offsetTop;
@@ -2172,26 +2172,30 @@ document.querySelectorAll('.scroll-container').forEach(container => {
             isDraggingHorizontally = true;
             e.preventDefault();
         }
+        // For normal left clicks, do NOT prevent default or interfere with scrolling
     });
 
     container.addEventListener('mouseleave', () => {
         isDown = false;
-        container.style.cursor = 'grab';
+        dragStarted = false;
+        container.style.cursor = '';
         isScrolling = false;
         isDraggingHorizontally = false;
     });
 
     container.addEventListener('mouseup', () => {
         isDown = false;
-        container.style.cursor = 'grab';
+        dragStarted = false;
+        container.style.cursor = '';
         isScrolling = false;
         isDraggingHorizontally = false;
     });
 
     container.addEventListener('mousemove', (e) => {
-        if (!isDown || !isDraggingHorizontally) return;
+        // ONLY handle mouse move if we explicitly started dragging
+        if (!isDown || !isDraggingHorizontally || !dragStarted) return;
         const x = e.pageX - container.offsetLeft;
-        const walk = (x - startX) * 2.5; // More responsive mouse dragging
+        const walk = (x - startX) * 2.5;
         container.scrollLeft = scrollLeft - walk;
         e.preventDefault();
     });
@@ -2267,7 +2271,7 @@ document.querySelectorAll('.scroll-container').forEach(container => {
         }
     });
 
-    // YouTube-style smooth scroll behavior
+    // Smooth scroll behavior for horizontal scrolling only
     container.style.scrollBehavior = 'smooth';
     container.style.scrollSnapType = 'x proximity';
     
@@ -2277,8 +2281,9 @@ document.querySelectorAll('.scroll-container').forEach(container => {
         item.style.scrollSnapAlign = 'start';
     });
     
-    // Add CSS for ultra-smooth scrolling
-    container.style.overscrollBehavior = 'contain';
+    // Ensure vertical scrolling works normally
+    container.style.overscrollBehaviorX = 'contain';
+    container.style.overscrollBehaviorY = 'auto';
     container.style.scrollbarWidth = 'none';
     container.style.msOverflowStyle = 'none';
 });
@@ -2601,136 +2606,39 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Enhanced search functionality with comprehensive database access
+    // Instant search page redirect like hanime.tv
     let isRedirecting = false;
-    let allPostsData = [];
     
-    // Function to fetch all posts data from your search page
-    async function fetchAllPostsData() {
-        try {
-            console.log('Fetching all posts data...');
-            
-            // Try to fetch data from your search page
-            const response = await fetch('https://anifinder.in/search/', {
-                method: 'GET',
-                headers: {
-                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
-                }
-            });
-            
-            if (response.ok) {
-                const html = await response.text();
-                const parser = new DOMParser();
-                const doc = parser.parseFromString(html, 'text/html');
-                
-                // Extract posts from the search page
-                const posts = [];
-                const postElements = doc.querySelectorAll('.scroll-item, .post-item, .video-item, [data-title], [data-url]');
-                
-                postElements.forEach(element => {
-                    const titleEl = element.querySelector('.item-title, .post-title, .title, h2, h3') || element;
-                    const linkEl = element.querySelector('a') || element;
-                    
-                    const title = titleEl.textContent?.trim() || titleEl.getAttribute('data-title') || '';
-                    const url = linkEl.href || linkEl.getAttribute('data-url') || linkEl.getAttribute('href') || '';
-                    
-                    if (title && url && title.length > 3) {
-                        posts.push({ title, url });
-                    }
-                });
-                
-                console.log(`Fetched ${posts.length} posts from search page`);
-                return posts;
-            }
-        } catch (error) {
-            console.log('Could not fetch from search page:', error);
-        }
+    // Function for instant search page redirect
+    function instantSearchRedirect(query = '') {
+        if (isRedirecting) return;
+        isRedirecting = true;
         
-        // Fallback: use current page data + make AJAX call for more data
-        return allPosts;
-    }
-    
-    // Smart search with instant suggestions and smooth redirect
-    searchBar.addEventListener('input', function() {
-        const query = this.value.trim();
-        
-        if (query.length >= 2) {
-            // Show instant suggestions from available data
-            clearTimeout(searchTimeout);
-            searchTimeout = setTimeout(() => {
-                fetchSuggestions(query);
-            }, 150);
-        } else {
-            hideSuggestions();
-        }
-    });
-    
-    searchBar.addEventListener('focus', function() {
-        const currentValue = this.value.trim();
-        
-        // If there's text, show suggestions first
-        if (currentValue.length >= 2) {
-            fetchSuggestions(currentValue);
-        } else {
-            // Show a helpful message
-            displayWelcomeMessage();
-        }
-        
-        // Add visual feedback
-        this.style.transition = 'all 0.3s ease';
-        this.style.transform = 'scale(1.01)';
-        this.style.boxShadow = '0 0 15px rgba(178, 164, 248, 0.2)';
-    });
-    
-    searchBar.addEventListener('blur', function() {
-        // Reset visual state
-        setTimeout(() => {
-            this.style.transform = '';
-            this.style.boxShadow = '';
-        }, 200);
-    });
-    
-    // Function to display welcome message
-    function displayWelcomeMessage() {
-        const html = `
-            <div class="search-suggestion-item welcome-message">
-                <span class="suggestion-icon">🔍</span>
-                <span class="suggestion-text">Start typing to search all posts...</span>
-                <span class="suggestion-type">Or click below</span>
-            </div>
-            <div class="search-suggestion-item redirect-option" onclick="redirectToSearchPage()">
-                <span class="suggestion-icon">🚀</span>
-                <span class="suggestion-text">Open full search page</span>
-                <span class="suggestion-type">Advanced</span>
-            </div>
-        `;
-        
-        suggestionsContainer.innerHTML = html;
-        suggestionsContainer.classList.add('active');
-    }
-    
-    // Global function for redirect
-    window.redirectToSearchPage = function(query = '') {
         const currentValue = query || searchBar.value.trim();
         const searchUrl = currentValue ? 
             `https://anifinder.in/search/?search=${encodeURIComponent(currentValue)}` : 
             'https://anifinder.in/search/';
         
-        // Smooth transition effect
-        document.body.style.transition = 'opacity 0.3s ease';
-        document.body.style.opacity = '0.8';
-        
-        setTimeout(() => {
-            window.location.href = searchUrl;
-        }, 150);
-    };
+        // Instant redirect without any delay - like hanime.tv
+        window.location.href = searchUrl;
+    }
     
-    // Initialize comprehensive post data
-    fetchAllPostsData().then(posts => {
-        if (posts.length > allPosts.length) {
-            allPosts = posts;
-            console.log(`Updated with ${posts.length} total posts`);
-        }
+    // Instant redirect on any interaction with search bar
+    searchBar.addEventListener('focus', function() {
+        instantSearchRedirect();
+    });
+    
+    searchBar.addEventListener('click', function() {
+        instantSearchRedirect();
+    });
+    
+    // Also redirect on input for mobile devices
+    searchBar.addEventListener('input', function() {
+        // Small delay to allow typing, but still redirect quickly
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => {
+            instantSearchRedirect();
+        }, 100);
     });
 });
 
