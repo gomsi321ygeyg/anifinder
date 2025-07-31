@@ -1621,12 +1621,77 @@ document.addEventListener('keydown', (e) => {
     }
 });
 
-// Cancel auto-scroll on horizontal wheel (e.g. trackpad swipe)
+// Enhanced wheel event for touchpad/mousepad horizontal scrolling
 carousel.addEventListener('wheel', function(e) {
-    if (Math.abs(e.deltaX) > 0) {
+    if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+        // Horizontal scroll detected - clear auto-scroll and navigate
+        e.preventDefault();
+        clearInterval(autoScrollInterval);
+        
+        if (e.deltaX > 30) {
+            // Scroll right
+            nextSlide();
+        } else if (e.deltaX < -30) {
+            // Scroll left
+            prevSlide();
+        }
+    } else if (Math.abs(e.deltaX) > 0) {
+        // Any horizontal movement cancels auto-scroll
         clearInterval(autoScrollInterval);
     }
+}, { passive: false });
+
+// Mouse drag functionality for desktop
+let isDown = false;
+let startX;
+let currentX;
+let mouseMoved = false;
+
+carousel.addEventListener('mousedown', (e) => {
+    isDown = true;
+    mouseMoved = false;
+    startX = e.pageX;
+    currentX = startX;
+    carousel.style.cursor = 'grabbing';
+    e.preventDefault();
 });
+
+carousel.addEventListener('mouseleave', () => {
+    isDown = false;
+    carousel.style.cursor = 'grab';
+});
+
+carousel.addEventListener('mouseup', () => {
+    isDown = false;
+    carousel.style.cursor = 'grab';
+    
+    if (mouseMoved) {
+        clearInterval(autoScrollInterval);
+        const deltaX = currentX - startX;
+        
+        if (Math.abs(deltaX) > 50) {
+            if (deltaX > 0) {
+                prevSlide(); // Dragged right
+            } else {
+                nextSlide(); // Dragged left
+            }
+        }
+    }
+});
+
+carousel.addEventListener('mousemove', (e) => {
+    if (!isDown) return;
+    e.preventDefault();
+    currentX = e.pageX;
+    const deltaX = currentX - startX;
+    
+    if (Math.abs(deltaX) > 10) {
+        mouseMoved = true;
+    }
+});
+
+// Add grab cursor styling
+carousel.style.cursor = 'grab';
 
 // Ensure correct positioning on resize
 window.addEventListener('resize', () => goToSlide(currentIndex));
