@@ -255,6 +255,211 @@ a { color:inherit; text-decoration:none; }
     color: rgba(255, 255, 255, 0.6);
 }
 
+#search-bar {
+    cursor: pointer;
+}
+
+/* Search Overlay Styles */
+.search-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.95);
+    backdrop-filter: blur(10px);
+    z-index: 10000;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.search-overlay.active {
+    opacity: 1;
+    visibility: visible;
+}
+
+.search-overlay-content {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    transform: translateY(-20px);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.search-overlay.active .search-overlay-content {
+    transform: translateY(0);
+}
+
+.search-overlay-header {
+    padding: 80px 40px 40px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.search-overlay-input-container {
+    position: relative;
+    width: 100%;
+    max-width: 800px;
+    display: flex;
+    align-items: center;
+}
+
+#search-overlay-input {
+    width: 100%;
+    padding: 20px 70px 20px 30px;
+    font-size: 2.5rem;
+    background: rgba(255, 255, 255, 0.1);
+    border: 2px solid rgba(178, 164, 248, 0.3);
+    border-radius: 50px;
+    color: #fff;
+    outline: none;
+    transition: all 0.3s ease;
+    backdrop-filter: blur(10px);
+}
+
+#search-overlay-input:focus {
+    border-color: #b2a4f8;
+    background: rgba(255, 255, 255, 0.15);
+    box-shadow: 0 0 0 4px rgba(178, 164, 248, 0.2);
+}
+
+#search-overlay-input::placeholder {
+    color: rgba(255, 255, 255, 0.7);
+    font-weight: 300;
+}
+
+.search-overlay-close {
+    position: absolute;
+    right: 20px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 3rem;
+    cursor: pointer;
+    width: 50px;
+    height: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: all 0.3s ease;
+}
+
+.search-overlay-close:hover {
+    color: #b2a4f8;
+    background: rgba(178, 164, 248, 0.1);
+    transform: translateY(-50%) scale(1.1);
+}
+
+.search-overlay-results {
+    flex: 1;
+    padding: 0 40px 40px;
+    overflow-y: auto;
+}
+
+.search-suggestions {
+    max-width: 800px;
+    margin: 0 auto;
+    opacity: 0;
+    transform: translateY(20px);
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1) 0.1s;
+}
+
+.search-overlay.active .search-suggestions {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.suggestion-category {
+    margin-bottom: 40px;
+}
+
+.suggestion-category h4 {
+    color: #b2a4f8;
+    font-size: 1.2rem;
+    margin-bottom: 15px;
+    font-weight: 600;
+}
+
+.suggestion-items {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.suggestion-item {
+    background: rgba(178, 164, 248, 0.1);
+    color: rgba(255, 255, 255, 0.9);
+    padding: 8px 16px;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border: 1px solid rgba(178, 164, 248, 0.2);
+    font-size: 0.9rem;
+}
+
+.suggestion-item:hover {
+    background: rgba(178, 164, 248, 0.2);
+    border-color: #b2a4f8;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(178, 164, 248, 0.3);
+}
+
+.search-results-content {
+    max-width: 800px;
+    margin: 0 auto;
+    opacity: 0;
+    transform: translateY(20px);
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1) 0.2s;
+}
+
+.search-overlay.active .search-results-content {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .search-overlay-header {
+        padding: 60px 20px 30px;
+    }
+    
+    #search-overlay-input {
+        font-size: 1.8rem;
+        padding: 15px 60px 15px 25px;
+    }
+    
+    .search-overlay-close {
+        font-size: 2.5rem;
+        width: 40px;
+        height: 40px;
+        right: 15px;
+    }
+    
+    .search-overlay-results {
+        padding: 0 20px 30px;
+    }
+}
+
+@media (max-width: 480px) {
+    #search-overlay-input {
+        font-size: 1.5rem;
+        padding: 12px 50px 12px 20px;
+    }
+    
+    .search-overlay-close {
+        font-size: 2rem;
+        width: 35px;
+        height: 35px;
+        right: 12px;
+    }
+}
+
 /* Auth Buttons */
 .auth-btn {
     background: linear-gradient(135deg, #3a2d70, #2a2754);
@@ -382,12 +587,25 @@ a { color:inherit; text-decoration:none; }
     }
 }
 
-.carousel-container { margin-top: 60px; padding: 0; overflow: hidden; position: relative; width: 100vw; }
-.carousel { display: flex; transition: transform 0.7s cubic-bezier(.4,0,.2,1); width: 100vw; touch-action: pan-x; }
+.carousel-container { 
+    margin-top: 60px; 
+    padding: 0; 
+    overflow: hidden; 
+    position: relative; 
+    width: 100vw; 
+    height: 100vh;
+}
+
+.carousel { 
+    display: flex; 
+    width: 500vw; /* 5 slides * 100vw each */
+    transition: transform 0.7s cubic-bezier(0.4, 0, 0.2, 1); /* Smooth slide transitions */
+}
 .slide {
   min-width: 100vw;
   max-width: 100vw;
   width: 100vw;
+  flex-shrink: 0; /* Prevent slides from shrinking */
   height: 100vh;
   min-height: unset;
   max-height: unset;
@@ -594,6 +812,8 @@ a { color:inherit; text-decoration:none; }
     -webkit-overflow-scrolling: touch;
     scroll-snap-type: x mandatory;
     width: 100%;
+    touch-action: pan-x pan-y; /* Allow both horizontal and vertical touch actions */
+    overscroll-behavior: auto; /* Allow scroll chaining to parent for vertical scroll */
 }
 
 .scroll-container::-webkit-scrollbar {
@@ -615,6 +835,7 @@ a { color:inherit; text-decoration:none; }
     margin: 0;
     transition: transform .13s, border-color .13s;
     flex-shrink: 0;
+    pointer-events: auto; /* Ensure child elements can be interacted with */
 }
 
 .scroll-item:hover {
@@ -1209,9 +1430,9 @@ a { color:inherit; text-decoration:none; }
         </div>
         
         <div class="search-container">
-            <form method="get" action="" class="search-bar-wrap">
-                <input id="search-bar" name="search" type="text" placeholder="Search..." autocomplete="off" value="<?php echo esc_attr(isset($_GET['search']) ? $_GET['search'] : ''); ?>">
-            </form>
+            <div class="search-bar-wrap">
+                <input id="search-bar" type="text" placeholder="Search..." autocomplete="off" readonly>
+            </div>
         </div>
         
         <div class="header-right">
@@ -1219,6 +1440,40 @@ a { color:inherit; text-decoration:none; }
         </div>
     </div>
 </header>
+
+<!-- Search Overlay -->
+<div id="search-overlay" class="search-overlay">
+    <div class="search-overlay-content">
+        <div class="search-overlay-header">
+            <div class="search-overlay-input-container">
+                <input id="search-overlay-input" type="text" placeholder="Search..." autocomplete="off">
+                <button id="search-overlay-close" class="search-overlay-close">&times;</button>
+            </div>
+        </div>
+        <div class="search-overlay-results">
+            <div class="search-suggestions">
+                <div class="suggestion-category">
+                    <h4>Popular Searches</h4>
+                    <div class="suggestion-items">
+                        <span class="suggestion-item">stepmom</span>
+                        <span class="suggestion-item">milf</span>
+                        <span class="suggestion-item">teacher</span>
+                        <span class="suggestion-item">stepsis</span>
+                    </div>
+                </div>
+                <div class="suggestion-category">
+                    <h4>Recent Searches</h4>
+                    <div class="suggestion-items" id="recent-searches">
+                        <!-- Recent searches will be populated by JavaScript -->
+                    </div>
+                </div>
+            </div>
+            <div class="search-results-content" id="search-results-content">
+                <!-- Search results will be populated here -->
+            </div>
+        </div>
+    </div>
+</div>
 
 <div id="overlay"></div>
 <div id="mobilemenu">
@@ -1288,126 +1543,157 @@ mobilemenu.onclick = function(e) { if(e.target.tagName==="A"){ closeMenu(); } };
 document.body.addEventListener('mousedown',function(e){
     if(menuOpen && !mobilemenu.contains(e.target) && !hamburger.contains(e.target)) closeMenu();
 });
-// Enhanced Carousel logic with smooth scrolling and user interaction respect
+// Clean Transform-based Carousel Logic
 const carousel = document.getElementById('carousel');
 const slides = carousel.children;
 let currentIndex = 0;
 const slideCount = slides.length;
-let autoScrollCount = 0;
 let autoScrollInterval;
-let isCarouselDragging = false;
-let carouselStartX = 0;
-let carouselScrollLeft = 0;
-let lastWheelTime = 0;
-let lastUserInteraction = 0;
-let isUserInteracting = false;
 
+// Move to a given slide index using transform
 function goToSlide(idx) {
     carousel.style.transform = `translateX(-${idx * 100}vw)`;
 }
 
+// Advance to next slide (without looping past last)
 function nextSlide() {
-    currentIndex = (currentIndex + 1) % slideCount;
-    goToSlide(currentIndex);
+    if (currentIndex < slideCount - 1) {
+        currentIndex++;
+        goToSlide(currentIndex);
+    }
 }
 
+// Go to previous slide (with wrapping)
 function prevSlide() {
     currentIndex = (currentIndex - 1 + slideCount) % slideCount;
     goToSlide(currentIndex);
 }
 
-// Smooth scroll to specific slide
-function smoothScrollToSlide(targetIndex) {
-    const currentScroll = -currentIndex * 100;
-    const targetScroll = -targetIndex * 100;
-    const diff = targetScroll - currentScroll;
-    
-    // Calculate shortest path
-    let shortestDiff = diff;
-    if (Math.abs(diff) > 50) {
-        if (diff > 0) {
-            shortestDiff = diff - 100;
-        } else {
-            shortestDiff = diff + 100;
-        }
-    }
-    
-    const targetScrollFinal = currentScroll + shortestDiff;
-    const targetIndexFinal = Math.abs(targetScrollFinal) / 100;
-    
-    currentIndex = targetIndexFinal;
-    goToSlide(currentIndex);
-}
-
-// Auto-scroll with user interaction respect
+// Auto-scroll: advance one slide every 2 seconds, stop after last slide
 function startAutoScroll() {
     autoScrollInterval = setInterval(() => {
-        // Only auto-scroll if user hasn't interacted recently
-        if (!isUserInteracting && Date.now() - lastUserInteraction > 2000) {
-            nextSlide();
-            autoScrollCount++;
-            if (autoScrollCount >= slideCount) {
-                clearInterval(autoScrollInterval);
-            }
+        if (currentIndex < slideCount - 1) {
+            currentIndex++;
+            goToSlide(currentIndex);
+        } else {
+            // Stop auto-scroll after reaching the last slide
+            clearInterval(autoScrollInterval);
         }
-    }, 3500);
+    }, 2000);  // 2000ms = 2 seconds
 }
+
+// Start auto-scroll on page load
 startAutoScroll();
 
-// Carousel wheel support removed to fix vertical scrolling issues
-// Only touch and arrow key navigation work for carousel now
+// Touch/Swipe support: clear auto-scroll on swipe and navigate
+let startX = 0, isDragging = false;
 
-// Enhanced touch/swipe support with smooth scrolling
 carousel.addEventListener('touchstart', function(e) {
-    isCarouselDragging = true;
-    carouselStartX = e.touches[0].clientX;
-    
-    // Mark user interaction
-    isUserInteracting = true;
-    lastUserInteraction = Date.now();
+    isDragging = true;
+    startX = e.touches[0].clientX;
 });
 
 carousel.addEventListener('touchmove', function(e) {
-    if (!isCarouselDragging) return;
-    let dx = e.touches[0].clientX - carouselStartX;
+    if (!isDragging) return;
+    let dx = e.touches[0].clientX - startX;
     if (Math.abs(dx) > 50) {
-        const scrollDirection = dx > 0 ? -1 : 1;
-        const targetIndex = (currentIndex + scrollDirection + slideCount) % slideCount;
-        smoothScrollToSlide(targetIndex);
-        isCarouselDragging = false;
+        clearInterval(autoScrollInterval);
+        if (dx > 0) prevSlide();
+        else nextSlide();
+        isDragging = false;
     }
 });
 
-carousel.addEventListener('touchend', function() { 
-    isCarouselDragging = false;
-    
-    // Reset user interaction after 3 seconds
-    setTimeout(() => {
-        isUserInteracting = false;
-    }, 3000);
+carousel.addEventListener('touchend', function() {
+    isDragging = false;
 });
 
-// Arrow key support for carousel
+// Arrow key support: clear auto-scroll and navigate
 document.addEventListener('keydown', (e) => {
     if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
-        isUserInteracting = true;
-        lastUserInteraction = Date.now();
-        
+        clearInterval(autoScrollInterval);
         if (e.key === 'ArrowLeft') {
-            const targetIndex = (currentIndex - 1 + slideCount) % slideCount;
-            smoothScrollToSlide(targetIndex);
+            prevSlide();
         } else if (e.key === 'ArrowRight') {
-            const targetIndex = (currentIndex + 1) % slideCount;
-            smoothScrollToSlide(targetIndex);
+            nextSlide();
         }
-        
-        // Reset user interaction after 3 seconds
-        setTimeout(() => {
-            isUserInteracting = false;
-        }, 3000);
+        e.preventDefault();
     }
 });
 
+// Enhanced wheel event for touchpad/mousepad horizontal scrolling
+carousel.addEventListener('wheel', function(e) {
+    if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+        // Horizontal scroll detected - clear auto-scroll and navigate
+        e.preventDefault();
+        clearInterval(autoScrollInterval);
+        
+        if (e.deltaX > 30) {
+            // Scroll right
+            nextSlide();
+        } else if (e.deltaX < -30) {
+            // Scroll left
+            prevSlide();
+        }
+    } else if (Math.abs(e.deltaX) > 0) {
+        // Any horizontal movement cancels auto-scroll
+        clearInterval(autoScrollInterval);
+    }
+}, { passive: false });
+
+// Mouse drag functionality for desktop
+let isDown = false;
+let startX;
+let currentX;
+let mouseMoved = false;
+
+carousel.addEventListener('mousedown', (e) => {
+    isDown = true;
+    mouseMoved = false;
+    startX = e.pageX;
+    currentX = startX;
+    carousel.style.cursor = 'grabbing';
+    e.preventDefault();
+});
+
+carousel.addEventListener('mouseleave', () => {
+    isDown = false;
+    carousel.style.cursor = 'grab';
+});
+
+carousel.addEventListener('mouseup', () => {
+    isDown = false;
+    carousel.style.cursor = 'grab';
+    
+    if (mouseMoved) {
+        clearInterval(autoScrollInterval);
+        const deltaX = currentX - startX;
+        
+        if (Math.abs(deltaX) > 50) {
+            if (deltaX > 0) {
+                prevSlide(); // Dragged right
+            } else {
+                nextSlide(); // Dragged left
+            }
+        }
+    }
+});
+
+carousel.addEventListener('mousemove', (e) => {
+    if (!isDown) return;
+    e.preventDefault();
+    currentX = e.pageX;
+    const deltaX = currentX - startX;
+    
+    if (Math.abs(deltaX) > 10) {
+        mouseMoved = true;
+    }
+});
+
+// Add grab cursor styling
+carousel.style.cursor = 'grab';
+
+// Ensure correct positioning on resize
 window.addEventListener('resize', () => goToSlide(currentIndex));
 </script>
 
@@ -1631,13 +1917,16 @@ document.querySelectorAll('.scroll-container').forEach(container => {
 
     // Mouse events for desktop
     container.addEventListener('mousedown', (e) => {
-        isDown = true;
-        container.style.cursor = 'grabbing';
-        startX = e.pageX - container.offsetLeft;
-        scrollLeft = container.scrollLeft;
-        cancelAnimationFrame(animationId);
-        isScrolling = true;
-        e.preventDefault();
+        // Only handle mouse drag if clicking directly on the container, not on child elements
+        if (e.target === container || e.target.closest('.scroll-item') === null) {
+            isDown = true;
+            container.style.cursor = 'grabbing';
+            startX = e.pageX - container.offsetLeft;
+            scrollLeft = container.scrollLeft;
+            cancelAnimationFrame(animationId);
+            isScrolling = true;
+            e.preventDefault();
+        }
     });
 
     container.addEventListener('mouseleave', () => {
@@ -1654,50 +1943,73 @@ document.querySelectorAll('.scroll-container').forEach(container => {
 
     container.addEventListener('mousemove', (e) => {
         if (!isDown) return;
+        e.preventDefault();
         const x = e.pageX - container.offsetLeft;
         const walk = (x - startX) * 2.5; // More responsive mouse dragging
         container.scrollLeft = scrollLeft - walk;
-        e.preventDefault();
     });
 
     // Only handle horizontal scrolling when shift is held - no wheel listener for posts
     // This ensures vertical scrolling works normally everywhere
 
-    // Enhanced touch events for mobile
+    // Enhanced touch events for mobile with proper scroll direction detection
     let startTouchX;
+    let startTouchY;
     let isTouching = false;
     let lastTouchX;
     let touchVelocity = 0;
     let lastTouchTime = 0;
     let touchStartTime = 0;
+    let scrollDirection = null; // 'horizontal', 'vertical', or null
+    let hasMovedHorizontally = false;
 
     container.addEventListener('touchstart', (e) => {
         isTouching = true;
         startTouchX = e.touches[0].clientX;
+        startTouchY = e.touches[0].clientY;
         lastTouchX = startTouchX;
         touchVelocity = 0;
         touchStartTime = Date.now();
         cancelAnimationFrame(animationId);
         isScrolling = true;
+        scrollDirection = null;
+        hasMovedHorizontally = false;
     });
 
     container.addEventListener('touchmove', (e) => {
         if (!isTouching) return;
+        
         const currentTouchX = e.touches[0].clientX;
+        const currentTouchY = e.touches[0].clientY;
         const currentTime = Date.now();
+        
+        const diffX = Math.abs(currentTouchX - startTouchX);
+        const diffY = Math.abs(currentTouchY - startTouchY);
         const diff = lastTouchX - currentTouchX;
         const timeDiff = currentTime - lastTouchTime;
         
-        // Only prevent default if we're actually scrolling horizontally
-        if (Math.abs(diff) > 5) {
-            e.preventDefault();
+        // Determine scroll direction only on first significant movement
+        if (scrollDirection === null && (diffX > 10 || diffY > 10)) {
+            if (diffX > diffY * 1.5) {
+                scrollDirection = 'horizontal';
+            } else if (diffY > diffX * 1.5) {
+                scrollDirection = 'vertical';
+            }
         }
         
-        if (timeDiff > 0) {
-            touchVelocity = diff / timeDiff * 20; // Calculate velocity with higher sensitivity
+        // Only handle horizontal scrolling if we've determined it's a horizontal gesture
+        if (scrollDirection === 'horizontal') {
+            e.preventDefault(); // Only prevent default for horizontal scrolling
+            hasMovedHorizontally = true;
+            
+            if (timeDiff > 0) {
+                touchVelocity = diff / timeDiff * 20; // Calculate velocity with higher sensitivity
+            }
+            
+            container.scrollLeft += diff * 2.5; // More responsive touch scrolling
         }
+        // For vertical scrolling or undetermined direction, let the browser handle it naturally
         
-        container.scrollLeft += diff * 2.5; // More responsive touch scrolling
         lastTouchX = currentTouchX;
         lastTouchTime = currentTime;
     });
@@ -1706,8 +2018,8 @@ document.querySelectorAll('.scroll-container').forEach(container => {
         isTouching = false;
         isScrolling = false;
         
-        // Responsive momentum scrolling
-        if (Math.abs(touchVelocity) > 0.5) {
+        // Only apply momentum scrolling if we were doing horizontal scrolling
+        if (hasMovedHorizontally && Math.abs(touchVelocity) > 0.5) {
             const momentum = () => {
                 container.scrollLeft += touchVelocity;
                 touchVelocity *= 0.88; // Faster decay for more responsive feel
@@ -1717,6 +2029,10 @@ document.querySelectorAll('.scroll-container').forEach(container => {
             };
             momentum();
         }
+        
+        // Reset flags
+        scrollDirection = null;
+        hasMovedHorizontally = false;
     });
 
     // YouTube-style smooth scroll behavior
@@ -1729,8 +2045,8 @@ document.querySelectorAll('.scroll-container').forEach(container => {
         item.style.scrollSnapAlign = 'start';
     });
     
-    // Add CSS for ultra-smooth scrolling
-    container.style.overscrollBehavior = 'contain';
+    // Add CSS for ultra-smooth scrolling with proper scroll chaining
+    container.style.overscrollBehavior = 'auto'; // Allow scroll chaining to parent
     container.style.scrollbarWidth = 'none';
     container.style.msOverflowStyle = 'none';
 });
@@ -1843,6 +2159,162 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initial check
     updateHeader();
 });
+
+// Search Overlay Functionality
+document.addEventListener('DOMContentLoaded', function() {
+    const searchBar = document.getElementById('search-bar');
+    const searchOverlay = document.getElementById('search-overlay');
+    const searchOverlayInput = document.getElementById('search-overlay-input');
+    const searchOverlayClose = document.getElementById('search-overlay-close');
+    const suggestionItems = document.querySelectorAll('.suggestion-item');
+    const recentSearchesContainer = document.getElementById('recent-searches');
+    const searchResultsContent = document.getElementById('search-results-content');
+
+    // Recent searches functionality
+    let recentSearches = JSON.parse(localStorage.getItem('recentSearches') || '[]');
+    
+    function updateRecentSearches() {
+        recentSearchesContainer.innerHTML = '';
+        recentSearches.slice(0, 5).forEach(search => {
+            const span = document.createElement('span');
+            span.className = 'suggestion-item';
+            span.textContent = search;
+            span.addEventListener('click', () => performSearch(search));
+            recentSearchesContainer.appendChild(span);
+        });
+    }
+    
+    function addToRecentSearches(query) {
+        if (query.trim() && !recentSearches.includes(query.trim())) {
+            recentSearches.unshift(query.trim());
+            recentSearches = recentSearches.slice(0, 10); // Keep only last 10
+            localStorage.setItem('recentSearches', JSON.stringify(recentSearches));
+            updateRecentSearches();
+        }
+    }
+    
+    // Initialize recent searches
+    updateRecentSearches();
+
+    // Open search overlay
+    function openSearchOverlay() {
+        searchOverlay.classList.add('active');
+        document.body.style.overflow = 'hidden';
+        
+        // Focus input after animation starts
+        setTimeout(() => {
+            searchOverlayInput.focus();
+        }, 100);
+    }
+
+    // Close search overlay
+    function closeSearchOverlay() {
+        searchOverlay.classList.remove('active');
+        document.body.style.overflow = '';
+        searchOverlayInput.value = '';
+        clearSearchResults();
+    }
+
+    // Clear search results
+    function clearSearchResults() {
+        searchResultsContent.innerHTML = '';
+    }
+
+    // Perform search
+    function performSearch(query) {
+        if (!query.trim()) return;
+        
+        addToRecentSearches(query);
+        
+        // Show loading state
+        searchResultsContent.innerHTML = `
+            <div style="text-align: center; padding: 40px; color: rgba(255, 255, 255, 0.7);">
+                <div style="font-size: 1.2rem; margin-bottom: 10px;">Searching for "${query}"...</div>
+                <div style="width: 40px; height: 40px; border: 3px solid rgba(178, 164, 248, 0.3); border-top: 3px solid #b2a4f8; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto;"></div>
+            </div>
+        `;
+        
+        // Simulate search delay and redirect (replace with actual search logic)
+        setTimeout(() => {
+            // For now, we'll redirect to the search page with the query
+            window.location.href = `/search?q=${encodeURIComponent(query)}`;
+        }, 500);
+    }
+
+    // Event listeners
+    searchBar.addEventListener('click', function(e) {
+        e.preventDefault();
+        openSearchOverlay();
+    });
+
+    searchOverlayClose.addEventListener('click', closeSearchOverlay);
+
+    // Close on overlay background click
+    searchOverlay.addEventListener('click', function(e) {
+        if (e.target === searchOverlay) {
+            closeSearchOverlay();
+        }
+    });
+
+    // Escape key to close
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && searchOverlay.classList.contains('active')) {
+            closeSearchOverlay();
+        }
+    });
+
+    // Search input handling
+    searchOverlayInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            performSearch(this.value);
+        }
+    });
+
+    // Real-time search (optional - you can enable this for live search)
+    let searchTimeout;
+    searchOverlayInput.addEventListener('input', function() {
+        const query = this.value.trim();
+        
+        clearTimeout(searchTimeout);
+        
+        if (query.length >= 2) {
+            searchTimeout = setTimeout(() => {
+                // Implement live search here if needed
+                // For now, we'll just show a preview
+                searchResultsContent.innerHTML = `
+                    <div style="color: rgba(255, 255, 255, 0.8); padding: 20px; text-align: center;">
+                        <div style="margin-bottom: 15px;">Press Enter to search for "${query}"</div>
+                        <div style="font-size: 0.9rem; color: rgba(255, 255, 255, 0.6);">
+                            Or click on a suggestion above
+                        </div>
+                    </div>
+                `;
+            }, 300);
+        } else {
+            clearSearchResults();
+        }
+    });
+
+    // Suggestion items click handlers
+    suggestionItems.forEach(item => {
+        item.addEventListener('click', function() {
+            const query = this.textContent;
+            searchOverlayInput.value = query;
+            performSearch(query);
+        });
+    });
+});
+
+// Add loading animation CSS
+const style = document.createElement('style');
+style.textContent = `
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+`;
+document.head.appendChild(style);
 </script>
 
 <!-- Login/Signup Modal -->
