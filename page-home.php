@@ -587,8 +587,8 @@ a { color:inherit; text-decoration:none; }
     }
 }
 
-.carousel-container { margin-top: 60px; padding: 0; overflow: hidden; position: relative; width: 100vw; }
-.carousel { display: flex; transition: transform 0.7s cubic-bezier(.4,0,.2,1); width: 100vw; touch-action: pan-x; }
+.carousel-container { margin-top: 60px; padding: 0; overflow: hidden; position: relative; width: 100vw; overscroll-behavior: auto; }
+.carousel { display: flex; transition: transform 0.7s cubic-bezier(.4,0,.2,1); width: 100vw; touch-action: pan-x; overscroll-behavior: auto; }
 .slide {
   min-width: 100vw;
   max-width: 100vw;
@@ -800,6 +800,7 @@ a { color:inherit; text-decoration:none; }
     scroll-snap-type: x mandatory;
     width: 100%;
     touch-action: pan-x pan-y; /* Allow both horizontal and vertical touch actions */
+    overscroll-behavior: auto; /* Allow scroll chaining to parent for vertical scroll */
 }
 
 .scroll-container::-webkit-scrollbar {
@@ -2000,8 +2001,8 @@ document.querySelectorAll('.scroll-container').forEach(container => {
         item.style.scrollSnapAlign = 'start';
     });
     
-    // Add CSS for ultra-smooth scrolling
-    container.style.overscrollBehavior = 'contain';
+    // Add CSS for ultra-smooth scrolling with proper scroll chaining
+    container.style.overscrollBehavior = 'auto'; // Allow scroll chaining to parent
     container.style.scrollbarWidth = 'none';
     container.style.msOverflowStyle = 'none';
 });
