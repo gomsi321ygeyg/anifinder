@@ -478,6 +478,39 @@ a { color:inherit; text-decoration:none; }
     color: #e8e6f0;
 }
 
+.search-suggestion-item.welcome-message {
+    opacity: 0.9;
+    cursor: default;
+    background: rgba(178, 164, 248, 0.05);
+}
+
+.search-suggestion-item.redirect-option {
+    background: linear-gradient(135deg, rgba(178, 164, 248, 0.1), rgba(178, 164, 248, 0.05));
+    cursor: pointer;
+    border: 1px solid rgba(178, 164, 248, 0.2);
+    margin: 2px;
+    border-radius: 8px;
+}
+
+.search-suggestion-item.redirect-option:hover {
+    background: linear-gradient(135deg, rgba(178, 164, 248, 0.2), rgba(178, 164, 248, 0.1));
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(178, 164, 248, 0.2);
+}
+
+.search-suggestion-item.view-all-option {
+    background: linear-gradient(135deg, rgba(34, 32, 69, 0.8), rgba(178, 164, 248, 0.1));
+    cursor: pointer;
+    border-top: 1px solid rgba(178, 164, 248, 0.3);
+    font-weight: 600;
+    margin-top: 4px;
+}
+
+.search-suggestion-item.view-all-option:hover {
+    background: linear-gradient(135deg, rgba(178, 164, 248, 0.15), rgba(178, 164, 248, 0.05));
+    color: #b2a4f8;
+}
+
 .suggestion-icon {
     width: 16px;
     height: 16px;
@@ -597,6 +630,16 @@ a { color:inherit; text-decoration:none; }
 
 #search-bar::placeholder {
     color: rgba(255, 255, 255, 0.6);
+}
+
+#search-bar:hover {
+    transform: scale(1.01);
+    box-shadow: 0 0 15px rgba(178, 164, 248, 0.2);
+    cursor: pointer;
+}
+
+#search-bar:hover::placeholder {
+    color: #b2a4f8;
 }
 
 /* Auth Buttons */
@@ -1585,7 +1628,7 @@ a { color:inherit; text-decoration:none; }
         
         <div class="search-container">
             <form method="get" action="" class="search-bar-wrap">
-                <input id="search-bar" name="search" type="text" placeholder="Search..." autocomplete="off" value="<?php echo esc_attr(isset($_GET['search']) ? $_GET['search'] : ''); ?>">
+                <input id="search-bar" name="search" type="text" placeholder="Click to search all posts..." autocomplete="off" value="<?php echo esc_attr(isset($_GET['search']) ? $_GET['search'] : ''); ?>">
                 <div id="search-suggestions" class="search-suggestions"></div>
             </form>
         </div>
@@ -2467,11 +2510,22 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
 
+        // Add "View All Results" option at the bottom if there are suggestions
+        if (uniqueSuggestions.length > 0) {
+            html += `
+                <div class="search-suggestion-item view-all-option" onclick="redirectToSearchPage('${query}')">
+                    <span class="suggestion-icon">📋</span>
+                    <span class="suggestion-text">View all ${uniqueSuggestions.length}+ results for "${query}"</span>
+                    <span class="suggestion-type">Full Search</span>
+                </div>
+            `;
+        }
+
         suggestionsContainer.innerHTML = html;
         suggestionsContainer.classList.add('active');
 
-        // Add click listeners to suggestion items (excluding no-results)
-        suggestionsContainer.querySelectorAll('.search-suggestion-item:not(.no-results)').forEach(item => {
+        // Add click listeners to suggestion items (excluding special items)
+        suggestionsContainer.querySelectorAll('.search-suggestion-item:not(.no-results):not(.welcome-message):not(.redirect-option):not(.view-all-option)').forEach(item => {
             item.addEventListener('click', function() {
                 const url = this.dataset.url;
                 if (url && url !== '#') {
@@ -2547,11 +2601,135 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Show suggestions when focusing on search bar (if there's text)
-    searchBar.addEventListener('focus', function() {
+    // Enhanced search functionality with comprehensive database access
+    let isRedirecting = false;
+    let allPostsData = [];
+    
+    // Function to fetch all posts data from your search page
+    async function fetchAllPostsData() {
+        try {
+            console.log('Fetching all posts data...');
+            
+            // Try to fetch data from your search page
+            const response = await fetch('https://anifinder.in/search/', {
+                method: 'GET',
+                headers: {
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+                }
+            });
+            
+            if (response.ok) {
+                const html = await response.text();
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                
+                // Extract posts from the search page
+                const posts = [];
+                const postElements = doc.querySelectorAll('.scroll-item, .post-item, .video-item, [data-title], [data-url]');
+                
+                postElements.forEach(element => {
+                    const titleEl = element.querySelector('.item-title, .post-title, .title, h2, h3') || element;
+                    const linkEl = element.querySelector('a') || element;
+                    
+                    const title = titleEl.textContent?.trim() || titleEl.getAttribute('data-title') || '';
+                    const url = linkEl.href || linkEl.getAttribute('data-url') || linkEl.getAttribute('href') || '';
+                    
+                    if (title && url && title.length > 3) {
+                        posts.push({ title, url });
+                    }
+                });
+                
+                console.log(`Fetched ${posts.length} posts from search page`);
+                return posts;
+            }
+        } catch (error) {
+            console.log('Could not fetch from search page:', error);
+        }
+        
+        // Fallback: use current page data + make AJAX call for more data
+        return allPosts;
+    }
+    
+    // Smart search with instant suggestions and smooth redirect
+    searchBar.addEventListener('input', function() {
         const query = this.value.trim();
+        
         if (query.length >= 2) {
-            fetchSuggestions(query);
+            // Show instant suggestions from available data
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                fetchSuggestions(query);
+            }, 150);
+        } else {
+            hideSuggestions();
+        }
+    });
+    
+    searchBar.addEventListener('focus', function() {
+        const currentValue = this.value.trim();
+        
+        // If there's text, show suggestions first
+        if (currentValue.length >= 2) {
+            fetchSuggestions(currentValue);
+        } else {
+            // Show a helpful message
+            displayWelcomeMessage();
+        }
+        
+        // Add visual feedback
+        this.style.transition = 'all 0.3s ease';
+        this.style.transform = 'scale(1.01)';
+        this.style.boxShadow = '0 0 15px rgba(178, 164, 248, 0.2)';
+    });
+    
+    searchBar.addEventListener('blur', function() {
+        // Reset visual state
+        setTimeout(() => {
+            this.style.transform = '';
+            this.style.boxShadow = '';
+        }, 200);
+    });
+    
+    // Function to display welcome message
+    function displayWelcomeMessage() {
+        const html = `
+            <div class="search-suggestion-item welcome-message">
+                <span class="suggestion-icon">🔍</span>
+                <span class="suggestion-text">Start typing to search all posts...</span>
+                <span class="suggestion-type">Or click below</span>
+            </div>
+            <div class="search-suggestion-item redirect-option" onclick="redirectToSearchPage()">
+                <span class="suggestion-icon">🚀</span>
+                <span class="suggestion-text">Open full search page</span>
+                <span class="suggestion-type">Advanced</span>
+            </div>
+        `;
+        
+        suggestionsContainer.innerHTML = html;
+        suggestionsContainer.classList.add('active');
+    }
+    
+    // Global function for redirect
+    window.redirectToSearchPage = function(query = '') {
+        const currentValue = query || searchBar.value.trim();
+        const searchUrl = currentValue ? 
+            `https://anifinder.in/search/?search=${encodeURIComponent(currentValue)}` : 
+            'https://anifinder.in/search/';
+        
+        // Smooth transition effect
+        document.body.style.transition = 'opacity 0.3s ease';
+        document.body.style.opacity = '0.8';
+        
+        setTimeout(() => {
+            window.location.href = searchUrl;
+        }, 150);
+    };
+    
+    // Initialize comprehensive post data
+    fetchAllPostsData().then(posts => {
+        if (posts.length > allPosts.length) {
+            allPosts = posts;
+            console.log(`Updated with ${posts.length} total posts`);
         }
     });
 });
