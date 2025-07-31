@@ -1,4 +1,189 @@
 <?php
+// Handle AJAX search suggestions
+if (isset($_GET['action']) && $_GET['action'] === 'search_suggestions') {
+    $query = sanitize_text_field($_GET['q']);
+    
+    // Debug: Log that endpoint is being called
+    error_log("Search suggestions endpoint called with query: " . $query);
+    
+    if (strlen($query) < 2) {
+        header('Content-Type: application/json');
+        echo json_encode([]);
+        exit;
+    }
+    
+    // Get all posts with their titles and tags
+    $all_posts = get_posts([
+        'post_type' => 'post',
+        'post_status' => 'publish',
+        'posts_per_page' => -1
+    ]);
+    
+    $suggestions = [];
+    
+    // Debug: Log the number of posts found
+    error_log("Search suggestions: Found " . count($all_posts) . " posts for query: " . $query);
+    
+    foreach ($all_posts as $post) {
+        $title = extract_title_from_content($post->post_content) ?: $post->post_title;
+        $content = $post->post_content;
+        $video_url = extract_video_url_from_content($content) ?: '#';
+        
+        // Get post tags
+        $tags = get_the_tags($post->ID);
+        $tag_names = $tags ? array_map(function($tag) { return $tag->name; }, $tags) : [];
+        
+        // Calculate relevance score and match position
+        $title_match = stripos($title, $query);
+        $tag_matches = [];
+        
+        foreach ($tag_names as $tag) {
+            $tag_match = stripos($tag, $query);
+            if ($tag_match !== false) {
+                $tag_matches[] = ['tag' => $tag, 'position' => $tag_match];
+            }
+        }
+        
+        // Determine relevance score (lower is better)
+        $relevance_score = 999;
+        $match_type = '';
+        $matched_text = '';
+        
+        if ($title_match !== false) {
+            $relevance_score = $title_match; // Position in title
+            $match_type = 'title';
+            $matched_text = $title;
+        } elseif (!empty($tag_matches)) {
+            // Find the best tag match (earliest position)
+            usort($tag_matches, function($a, $b) {
+                return $a['position'] - $b['position'];
+            });
+            $best_tag_match = $tag_matches[0];
+            $relevance_score = 100 + $best_tag_match['position']; // Tags get lower priority
+            $match_type = 'tag';
+            $matched_text = $best_tag_match['tag'];
+        }
+        
+        if ($relevance_score < 999) {
+            $suggestions[] = [
+                'title' => $title,
+                'url' => $video_url,
+                'relevance' => $relevance_score,
+                'match_type' => $match_type,
+                'matched_text' => $matched_text,
+                'query' => $query
+            ];
+        }
+    }
+    
+    // Sort by relevance (lower score = higher relevance)
+    usort($suggestions, function($a, $b) {
+        return $a['relevance'] - $b['relevance'];
+    });
+    
+    // Limit to top 10 suggestions
+    $suggestions = array_slice($suggestions, 0, 10);
+    
+    // Debug: Add a test suggestion if no results found
+    if (empty($suggestions)) {
+        $suggestions[] = [
+            'title' => 'Test suggestion for: ' . $query,
+            'url' => '#',
+            'relevance' => 0,
+            'match_type' => 'title',
+            'matched_text' => 'Test',
+            'query' => $query
+        ];
+    }
+    
+    header('Content-Type: application/json');
+    echo json_encode($suggestions);
+    exit;
+}
+
+// WordPress AJAX handlers for search suggestions
+add_action('wp_ajax_search_suggestions', 'handle_search_suggestions_ajax');
+add_action('wp_ajax_nopriv_search_suggestions', 'handle_search_suggestions_ajax');
+
+function handle_search_suggestions_ajax() {
+    $query = sanitize_text_field($_POST['q']);
+    
+    if (strlen($query) < 2) {
+        wp_die(json_encode([]));
+    }
+    
+    // Get all posts with their titles and tags
+    $all_posts = get_posts([
+        'post_type' => 'post',
+        'post_status' => 'publish',
+        'posts_per_page' => -1
+    ]);
+    
+    $suggestions = [];
+    
+    foreach ($all_posts as $post) {
+        $title = extract_title_from_content($post->post_content) ?: $post->post_title;
+        $content = $post->post_content;
+        $video_url = extract_video_url_from_content($content) ?: '#';
+        
+        // Get post tags
+        $tags = get_the_tags($post->ID);
+        $tag_names = $tags ? array_map(function($tag) { return $tag->name; }, $tags) : [];
+        
+        // Calculate relevance score and match position
+        $title_match = stripos($title, $query);
+        $tag_matches = [];
+        
+        foreach ($tag_names as $tag) {
+            $tag_match = stripos($tag, $query);
+            if ($tag_match !== false) {
+                $tag_matches[] = ['tag' => $tag, 'position' => $tag_match];
+            }
+        }
+        
+        // Determine relevance score (lower is better)
+        $relevance_score = 999;
+        $match_type = '';
+        $matched_text = '';
+        
+        if ($title_match !== false) {
+            $relevance_score = $title_match; // Position in title
+            $match_type = 'title';
+            $matched_text = $title;
+        } elseif (!empty($tag_matches)) {
+            // Find the best tag match (earliest position)
+            usort($tag_matches, function($a, $b) {
+                return $a['position'] - $b['position'];
+            });
+            $best_tag_match = $tag_matches[0];
+            $relevance_score = 100 + $best_tag_match['position']; // Tags get lower priority
+            $match_type = 'tag';
+            $matched_text = $best_tag_match['tag'];
+        }
+        
+        if ($relevance_score < 999) {
+            $suggestions[] = [
+                'title' => $title,
+                'url' => $video_url,
+                'relevance' => $relevance_score,
+                'match_type' => $match_type,
+                'matched_text' => $matched_text,
+                'query' => $query
+            ];
+        }
+    }
+    
+    // Sort by relevance (lower score = higher relevance)
+    usort($suggestions, function($a, $b) {
+        return $a['relevance'] - $b['relevance'];
+    });
+    
+    // Limit to top 10 suggestions
+    $suggestions = array_slice($suggestions, 0, 10);
+    
+    wp_die(json_encode($suggestions));
+}
+
 // Handle form submissions
 if (isset($_POST['action']) && $_POST['action'] === 'login') {
     $username = sanitize_text_field($_POST['username']);
@@ -233,6 +418,190 @@ a { color:inherit; text-decoration:none; }
     position: relative;
 }
 
+/* Search Suggestions Dropdown */
+.search-suggestions {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: rgba(34, 32, 69, 0.98);
+    border: 1px solid rgba(178, 164, 248, 0.3);
+    border-top: none;
+    border-radius: 0 0 15px 15px;
+    max-height: 400px;
+    overflow-y: auto;
+    z-index: 1001;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    display: none;
+}
+
+.search-suggestions.active {
+    display: block;
+    animation: suggestionsFadeIn 0.2s ease-out;
+}
+
+@keyframes suggestionsFadeIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.search-suggestion-item {
+    padding: 12px 20px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border-bottom: 1px solid rgba(178, 164, 248, 0.1);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.search-suggestion-item:hover,
+.search-suggestion-item.highlighted {
+    background: rgba(178, 164, 248, 0.1);
+    color: #b2a4f8;
+}
+
+.search-suggestion-item:last-child {
+    border-bottom: none;
+    border-radius: 0 0 15px 15px;
+}
+
+.search-suggestion-item.no-results {
+    opacity: 0.8;
+    cursor: default;
+    font-style: italic;
+}
+
+.search-suggestion-item.no-results:hover {
+    background: rgba(178, 164, 248, 0.05);
+    color: #e8e6f0;
+}
+
+.search-suggestion-item.welcome-message {
+    opacity: 0.9;
+    cursor: default;
+    background: rgba(178, 164, 248, 0.05);
+}
+
+.search-suggestion-item.redirect-option {
+    background: linear-gradient(135deg, rgba(178, 164, 248, 0.1), rgba(178, 164, 248, 0.05));
+    cursor: pointer;
+    border: 1px solid rgba(178, 164, 248, 0.2);
+    margin: 2px;
+    border-radius: 8px;
+}
+
+.search-suggestion-item.redirect-option:hover {
+    background: linear-gradient(135deg, rgba(178, 164, 248, 0.2), rgba(178, 164, 248, 0.1));
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(178, 164, 248, 0.2);
+}
+
+.search-suggestion-item.view-all-option {
+    background: linear-gradient(135deg, rgba(34, 32, 69, 0.8), rgba(178, 164, 248, 0.1));
+    cursor: pointer;
+    border-top: 1px solid rgba(178, 164, 248, 0.3);
+    font-weight: 600;
+    margin-top: 4px;
+}
+
+.search-suggestion-item.view-all-option:hover {
+    background: linear-gradient(135deg, rgba(178, 164, 248, 0.15), rgba(178, 164, 248, 0.05));
+    color: #b2a4f8;
+}
+
+.suggestion-icon {
+    width: 16px;
+    height: 16px;
+    opacity: 0.7;
+    flex-shrink: 0;
+}
+
+.suggestion-text {
+    flex: 1;
+    font-size: 0.95rem;
+    color: #e8e6f0;
+}
+
+.suggestion-match {
+    background: rgba(178, 164, 248, 0.3);
+    color: #fff;
+    font-weight: 600;
+    border-radius: 3px;
+    padding: 1px 3px;
+}
+
+.suggestion-type {
+    font-size: 0.8rem;
+    color: #b2a4f8;
+    opacity: 0.8;
+    flex-shrink: 0;
+}
+
+.search-suggestions::-webkit-scrollbar {
+    width: 6px;
+}
+
+.search-suggestions::-webkit-scrollbar-track {
+    background: rgba(178, 164, 248, 0.1);
+}
+
+.search-suggestions::-webkit-scrollbar-thumb {
+    background: rgba(178, 164, 248, 0.3);
+    border-radius: 3px;
+}
+
+.search-suggestions::-webkit-scrollbar-thumb:hover {
+    background: rgba(178, 164, 248, 0.5);
+}
+
+/* Mobile responsive search suggestions */
+@media (max-width: 768px) {
+    .search-suggestions {
+        max-height: 300px;
+        border-radius: 0 0 12px 12px;
+    }
+    
+    .search-suggestion-item {
+        padding: 10px 15px;
+        gap: 10px;
+    }
+    
+    .suggestion-text {
+        font-size: 0.9rem;
+    }
+    
+    .suggestion-type {
+        font-size: 0.75rem;
+    }
+    
+    .suggestion-icon {
+        width: 14px;
+        height: 14px;
+    }
+}
+
+@media (max-width: 480px) {
+    .search-suggestions {
+        max-height: 250px;
+        border-radius: 0 0 10px 10px;
+    }
+    
+    .search-suggestion-item {
+        padding: 8px 12px;
+        gap: 8px;
+    }
+    
+    .suggestion-text {
+        font-size: 0.85rem;
+    }
+    
+    .suggestion-type {
+        font-size: 0.7rem;
+    }
+}
+
 #search-bar { 
     width: 100%; 
     padding: 12px 20px; 
@@ -251,8 +620,26 @@ a { color:inherit; text-decoration:none; }
     box-shadow: 0 0 0 3px rgba(178, 164, 248, 0.1);
 }
 
+#search-bar:focus + .search-suggestions.active {
+    border-top: 1px solid rgba(178, 164, 248, 0.3);
+}
+
+.search-bar-wrap:has(.search-suggestions.active) #search-bar {
+    border-radius: 25px 25px 0 0;
+}
+
 #search-bar::placeholder {
     color: rgba(255, 255, 255, 0.6);
+}
+
+#search-bar:hover {
+    transform: scale(1.01);
+    box-shadow: 0 0 15px rgba(178, 164, 248, 0.2);
+    cursor: pointer;
+}
+
+#search-bar:hover::placeholder {
+    color: #b2a4f8;
 }
 
 /* Auth Buttons */
@@ -382,8 +769,39 @@ a { color:inherit; text-decoration:none; }
     }
 }
 
-.carousel-container { margin-top: 60px; padding: 0; overflow: hidden; position: relative; width: 100vw; }
-.carousel { display: flex; transition: transform 0.7s cubic-bezier(.4,0,.2,1); width: 100vw; touch-action: pan-x; }
+.carousel-container { 
+    margin-top: 60px; 
+    padding: 0; 
+    overflow: hidden; 
+    position: relative; 
+    width: 100vw; 
+}
+
+.carousel-container::after {
+    content: 'Hold Shift + drag or scroll to navigate slides manually';
+    position: absolute;
+    bottom: 20px;
+    right: 20px;
+    background: rgba(0, 0, 0, 0.7);
+    color: #b2a4f8;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    opacity: 0.8;
+    pointer-events: none;
+    z-index: 10;
+}
+
+@media (max-width: 768px) {
+    .carousel-container::after {
+        content: 'Swipe horizontally to navigate slides';
+        bottom: 10px;
+        right: 10px;
+        font-size: 0.7rem;
+        padding: 6px 10px;
+    }
+}
+.carousel { display: flex; transition: transform 0.7s cubic-bezier(.4,0,.2,1); width: 100vw; touch-action: pan-y pinch-zoom; }
 .slide {
   min-width: 100vw;
   max-width: 100vw;
@@ -587,10 +1005,8 @@ a { color:inherit; text-decoration:none; }
     overflow-x: auto;
     scroll-behavior: smooth;
     padding: 10px 0;
-    cursor: grab;
     scrollbar-width: none;
     -ms-overflow-style: none;
-    user-select: none;
     -webkit-overflow-scrolling: touch;
     scroll-snap-type: x mandatory;
     width: 100%;
@@ -1211,6 +1627,7 @@ a { color:inherit; text-decoration:none; }
         <div class="search-container">
             <form method="get" action="" class="search-bar-wrap">
                 <input id="search-bar" name="search" type="text" placeholder="Search..." autocomplete="off" value="<?php echo esc_attr(isset($_GET['search']) ? $_GET['search'] : ''); ?>">
+                <div id="search-suggestions" class="search-suggestions"></div>
             </form>
         </div>
         
@@ -1297,6 +1714,7 @@ let autoScrollCount = 0;
 let autoScrollInterval;
 let isCarouselDragging = false;
 let carouselStartX = 0;
+let carouselStartY = 0;
 let carouselScrollLeft = 0;
 let lastWheelTime = 0;
 let lastUserInteraction = 0;
@@ -1342,49 +1760,141 @@ function smoothScrollToSlide(targetIndex) {
 // Auto-scroll with user interaction respect
 function startAutoScroll() {
     autoScrollInterval = setInterval(() => {
-        // Only auto-scroll if user hasn't interacted recently
-        if (!isUserInteracting && Date.now() - lastUserInteraction > 2000) {
+        // Only auto-scroll if user hasn't interacted recently and autoscroll isn't disabled
+        if (!isUserInteracting && Date.now() - lastUserInteraction > 5000 && autoScrollCount < slideCount) {
             nextSlide();
             autoScrollCount++;
             if (autoScrollCount >= slideCount) {
                 clearInterval(autoScrollInterval);
             }
         }
-    }, 3500);
+    }, 4000);
+}
+
+// Function to stop autoscroll permanently when user interacts
+function stopAutoScroll() {
+    if (autoScrollInterval) {
+        clearInterval(autoScrollInterval);
+        autoScrollInterval = null;
+    }
+    autoScrollCount = slideCount; // Prevent restart
 }
 startAutoScroll();
 
-// Carousel wheel support removed to fix vertical scrolling issues
-// Only touch and arrow key navigation work for carousel now
+// Mouse drag support for carousel
+let carouselMouseDown = false;
+let carouselMouseStartX = 0;
+let carouselInitialTranslate = 0;
+
+carousel.addEventListener('mousedown', function(e) {
+    // Only activate on middle mouse button or when holding shift
+    if (e.button === 1 || e.shiftKey) {
+        carouselMouseDown = true;
+        carouselMouseStartX = e.clientX;
+        carouselInitialTranslate = -currentIndex * 100;
+        carousel.style.cursor = 'grabbing';
+        carousel.style.transition = 'none'; // Disable transition during drag
+        e.preventDefault();
+        
+        // Stop autoscroll
+        stopAutoScroll();
+        isUserInteracting = true;
+        lastUserInteraction = Date.now();
+    }
+});
+
+document.addEventListener('mousemove', function(e) {
+    if (!carouselMouseDown) return;
+    
+    const deltaX = e.clientX - carouselMouseStartX;
+    const deltaPercent = (deltaX / window.innerWidth) * 100;
+    const newTranslate = carouselInitialTranslate + deltaPercent;
+    
+    carousel.style.transform = `translateX(${newTranslate}vw)`;
+});
+
+document.addEventListener('mouseup', function() {
+    if (!carouselMouseDown) return;
+    
+    carouselMouseDown = false;
+    carousel.style.cursor = '';
+    carousel.style.transition = 'transform 0.7s cubic-bezier(.4,0,.2,1)'; // Re-enable transition
+    
+    // Snap to nearest slide
+    const currentTranslate = parseFloat(carousel.style.transform.match(/-?\d+\.?\d*/)[0]);
+    const newIndex = Math.round(Math.abs(currentTranslate) / 100) % slideCount;
+    currentIndex = newIndex;
+    goToSlide(currentIndex);
+    
+    // Keep user interaction flag
+    setTimeout(() => {
+        isUserInteracting = false;
+    }, 10000);
+});
+
+// Mouse wheel support for carousel (with Shift key)
+carousel.addEventListener('wheel', function(e) {
+    if (e.shiftKey) {
+        e.preventDefault();
+        
+        // Stop autoscroll
+        stopAutoScroll();
+        isUserInteracting = true;
+        lastUserInteraction = Date.now();
+        
+        if (e.deltaY > 0) {
+            // Scroll down = next slide
+            const targetIndex = (currentIndex + 1) % slideCount;
+            smoothScrollToSlide(targetIndex);
+        } else {
+            // Scroll up = previous slide
+            const targetIndex = (currentIndex - 1 + slideCount) % slideCount;
+            smoothScrollToSlide(targetIndex);
+        }
+        
+        setTimeout(() => {
+            isUserInteracting = false;
+        }, 10000);
+    }
+});
 
 // Enhanced touch/swipe support with smooth scrolling
 carousel.addEventListener('touchstart', function(e) {
     isCarouselDragging = true;
     carouselStartX = e.touches[0].clientX;
+    carouselStartY = e.touches[0].clientY;
     
-    // Mark user interaction
+    // Mark user interaction and stop autoscroll
     isUserInteracting = true;
     lastUserInteraction = Date.now();
+    stopAutoScroll();
 });
 
 carousel.addEventListener('touchmove', function(e) {
     if (!isCarouselDragging) return;
     let dx = e.touches[0].clientX - carouselStartX;
-    if (Math.abs(dx) > 50) {
-        const scrollDirection = dx > 0 ? -1 : 1;
-        const targetIndex = (currentIndex + scrollDirection + slideCount) % slideCount;
-        smoothScrollToSlide(targetIndex);
-        isCarouselDragging = false;
+    let dy = e.touches[0].clientY - carouselStartY;
+    
+    // Check if this is a horizontal swipe
+    if (Math.abs(dx) > Math.abs(dy)) {
+        // Only handle if swipe is significant enough
+        if (Math.abs(dx) > 30) {
+            e.preventDefault(); // Only prevent default for horizontal swipes
+            const scrollDirection = dx > 0 ? -1 : 1;
+            const targetIndex = (currentIndex + scrollDirection + slideCount) % slideCount;
+            smoothScrollToSlide(targetIndex);
+            isCarouselDragging = false;
+        }
     }
 });
 
 carousel.addEventListener('touchend', function() { 
     isCarouselDragging = false;
     
-    // Reset user interaction after 3 seconds
+    // Keep user interaction flag for longer to prevent autoscroll restart
     setTimeout(() => {
         isUserInteracting = false;
-    }, 3000);
+    }, 10000);
 });
 
 // Arrow key support for carousel
@@ -1392,6 +1902,7 @@ document.addEventListener('keydown', (e) => {
     if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
         isUserInteracting = true;
         lastUserInteraction = Date.now();
+        stopAutoScroll(); // Stop autoscroll when user uses keyboard
         
         if (e.key === 'ArrowLeft') {
             const targetIndex = (currentIndex - 1 + slideCount) % slideCount;
@@ -1401,11 +1912,24 @@ document.addEventListener('keydown', (e) => {
             smoothScrollToSlide(targetIndex);
         }
         
-        // Reset user interaction after 3 seconds
+        // Keep user interaction flag for longer to prevent autoscroll restart
         setTimeout(() => {
             isUserInteracting = false;
-        }, 3000);
+        }, 10000);
     }
+});
+
+// Mouse click detection for carousel
+carousel.addEventListener('click', function(e) {
+    // Stop autoscroll when user clicks on carousel
+    stopAutoScroll();
+    isUserInteracting = true;
+    lastUserInteraction = Date.now();
+    
+    // Keep user interaction flag for longer
+    setTimeout(() => {
+        isUserInteracting = false;
+    }, 10000);
 });
 
 window.addEventListener('resize', () => goToSlide(currentIndex));
@@ -1629,42 +2153,66 @@ document.querySelectorAll('.scroll-container').forEach(container => {
     let lastScrollTime = 0;
     let isScrolling = false;
 
-    // Mouse events for desktop
+    // Mouse events for desktop - ONLY for explicit horizontal dragging
+    let startY;
+    let isDraggingHorizontally = false;
+    let dragStarted = false;
+    
     container.addEventListener('mousedown', (e) => {
-        isDown = true;
-        container.style.cursor = 'grabbing';
-        startX = e.pageX - container.offsetLeft;
-        scrollLeft = container.scrollLeft;
-        cancelAnimationFrame(animationId);
-        isScrolling = true;
-        e.preventDefault();
+        // Only activate on explicit drag intent (middle button or shift+drag)
+        if (e.button === 1 || e.shiftKey) {
+            isDown = true;
+            dragStarted = true;
+            container.style.cursor = 'grabbing';
+            startX = e.pageX - container.offsetLeft;
+            startY = e.pageY - container.offsetTop;
+            scrollLeft = container.scrollLeft;
+            cancelAnimationFrame(animationId);
+            isScrolling = true;
+            isDraggingHorizontally = true;
+            e.preventDefault();
+        }
+        // For normal left clicks, do NOT prevent default or interfere with scrolling
     });
 
     container.addEventListener('mouseleave', () => {
         isDown = false;
-        container.style.cursor = 'grab';
+        dragStarted = false;
+        container.style.cursor = '';
         isScrolling = false;
+        isDraggingHorizontally = false;
     });
 
     container.addEventListener('mouseup', () => {
         isDown = false;
-        container.style.cursor = 'grab';
+        dragStarted = false;
+        container.style.cursor = '';
         isScrolling = false;
+        isDraggingHorizontally = false;
     });
 
     container.addEventListener('mousemove', (e) => {
-        if (!isDown) return;
+        // ONLY handle mouse move if we explicitly started dragging
+        if (!isDown || !isDraggingHorizontally || !dragStarted) return;
         const x = e.pageX - container.offsetLeft;
-        const walk = (x - startX) * 2.5; // More responsive mouse dragging
+        const walk = (x - startX) * 2.5;
         container.scrollLeft = scrollLeft - walk;
         e.preventDefault();
     });
 
-    // Only handle horizontal scrolling when shift is held - no wheel listener for posts
-    // This ensures vertical scrolling works normally everywhere
+    // Mouse wheel support for horizontal scrolling (only when shift is held)
+    container.addEventListener('wheel', (e) => {
+        // Only handle horizontal scrolling when shift key is held
+        if (e.shiftKey) {
+            e.preventDefault();
+            container.scrollLeft += e.deltaY * 2;
+        }
+        // Otherwise, allow normal vertical scrolling
+    });
 
     // Enhanced touch events for mobile
     let startTouchX;
+    let startTouchY;
     let isTouching = false;
     let lastTouchX;
     let touchVelocity = 0;
@@ -1674,6 +2222,7 @@ document.querySelectorAll('.scroll-container').forEach(container => {
     container.addEventListener('touchstart', (e) => {
         isTouching = true;
         startTouchX = e.touches[0].clientX;
+        startTouchY = e.touches[0].clientY;
         lastTouchX = startTouchX;
         touchVelocity = 0;
         touchStartTime = Date.now();
@@ -1684,20 +2233,23 @@ document.querySelectorAll('.scroll-container').forEach(container => {
     container.addEventListener('touchmove', (e) => {
         if (!isTouching) return;
         const currentTouchX = e.touches[0].clientX;
+        const currentTouchY = e.touches[0].clientY;
         const currentTime = Date.now();
-        const diff = lastTouchX - currentTouchX;
+        const diffX = lastTouchX - currentTouchX;
+        const diffY = Math.abs(e.touches[0].clientY - startTouchY);
         const timeDiff = currentTime - lastTouchTime;
         
-        // Only prevent default if we're actually scrolling horizontally
-        if (Math.abs(diff) > 5) {
-            e.preventDefault();
+        // Only handle horizontal scrolling if horizontal movement is dominant
+        if (Math.abs(diffX) > diffY && Math.abs(diffX) > 10) {
+            e.preventDefault(); // Prevent vertical scroll only when clearly horizontal
+            
+            if (timeDiff > 0) {
+                touchVelocity = diffX / timeDiff * 20; // Calculate velocity with higher sensitivity
+            }
+            
+            container.scrollLeft += diffX * 2.5; // More responsive touch scrolling
         }
         
-        if (timeDiff > 0) {
-            touchVelocity = diff / timeDiff * 20; // Calculate velocity with higher sensitivity
-        }
-        
-        container.scrollLeft += diff * 2.5; // More responsive touch scrolling
         lastTouchX = currentTouchX;
         lastTouchTime = currentTime;
     });
@@ -1719,7 +2271,7 @@ document.querySelectorAll('.scroll-container').forEach(container => {
         }
     });
 
-    // YouTube-style smooth scroll behavior
+    // Smooth scroll behavior for horizontal scrolling only
     container.style.scrollBehavior = 'smooth';
     container.style.scrollSnapType = 'x proximity';
     
@@ -1729,16 +2281,17 @@ document.querySelectorAll('.scroll-container').forEach(container => {
         item.style.scrollSnapAlign = 'start';
     });
     
-    // Add CSS for ultra-smooth scrolling
-    container.style.overscrollBehavior = 'contain';
+    // Ensure vertical scrolling works normally
+    container.style.overscrollBehaviorX = 'contain';
+    container.style.overscrollBehaviorY = 'auto';
     container.style.scrollbarWidth = 'none';
     container.style.msOverflowStyle = 'none';
 });
 
-// Arrow key support for horizontal scrolling
+// Arrow key support for horizontal scrolling (only when Shift is held)
 document.addEventListener('keydown', (e) => {
     const activeContainer = document.querySelector('.scroll-container:hover');
-    if (!activeContainer) return;
+    if (!activeContainer || !e.shiftKey) return;
     
     if (e.key === 'ArrowLeft') {
         e.preventDefault();
@@ -1822,6 +2375,271 @@ document.addEventListener('keydown', (e) => {
         authModal.classList.remove('active');
         document.body.style.overflow = '';
     }
+});
+
+// Intelligent Search Suggestions System
+document.addEventListener('DOMContentLoaded', function() {
+    const searchBar = document.getElementById('search-bar');
+    const suggestionsContainer = document.getElementById('search-suggestions');
+    let currentSuggestions = [];
+    let highlightedIndex = -1;
+    let searchTimeout;
+    let allPosts = []; // Store all posts data for client-side search
+    
+    // Extract posts data from the page
+    function extractPostsData() {
+        const posts = [];
+        
+        // Get posts from all scroll containers
+        document.querySelectorAll('.scroll-item').forEach(item => {
+            const titleElement = item.querySelector('.item-title');
+            const linkElement = item.querySelector('a');
+            
+            if (titleElement && linkElement) {
+                const title = titleElement.textContent.trim();
+                const url = linkElement.href;
+                
+                if (title && url) {
+                    posts.push({
+                        title: title,
+                        url: url,
+                        tags: [] // We'll add tags later if available
+                    });
+                }
+            }
+        });
+        
+        console.log('Extracted posts data:', posts);
+        return posts;
+    }
+    
+    // Initialize posts data
+    allPosts = extractPostsData();
+
+    // Function to highlight matching text
+    function highlightMatch(text, query) {
+        if (!query) return text;
+        const regex = new RegExp(`(${query})`, 'gi');
+        return text.replace(regex, '<span class="suggestion-match">$1</span>');
+    }
+
+    // Function to search suggestions from client-side data
+    function fetchSuggestions(query) {
+        if (query.length < 2) {
+            hideSuggestions();
+            return;
+        }
+
+        console.log('Searching for:', query, 'in', allPosts.length, 'posts'); // Debug log
+
+        const suggestions = [];
+        
+        allPosts.forEach(post => {
+            const titleMatch = post.title.toLowerCase().indexOf(query.toLowerCase());
+            
+            if (titleMatch !== -1) {
+                // Calculate relevance score (lower is better)
+                const relevance = titleMatch;
+                
+                suggestions.push({
+                    title: post.title,
+                    url: post.url,
+                    relevance: relevance,
+                    match_type: 'title',
+                    matched_text: post.title,
+                    query: query
+                });
+            }
+            
+            // Also check tags if available
+            post.tags.forEach(tag => {
+                const tagMatch = tag.toLowerCase().indexOf(query.toLowerCase());
+                if (tagMatch !== -1) {
+                    suggestions.push({
+                        title: post.title,
+                        url: post.url,
+                        relevance: 100 + tagMatch, // Tags get lower priority
+                        match_type: 'tag',
+                        matched_text: tag,
+                        query: query
+                    });
+                }
+            });
+        });
+        
+        // Sort by relevance (lower score = higher relevance)
+        suggestions.sort((a, b) => a.relevance - b.relevance);
+        
+        // Remove duplicates and limit to 10
+        const uniqueSuggestions = [];
+        const seenUrls = new Set();
+        
+        for (const suggestion of suggestions) {
+            if (!seenUrls.has(suggestion.url) && uniqueSuggestions.length < 10) {
+                seenUrls.add(suggestion.url);
+                uniqueSuggestions.push(suggestion);
+            }
+        }
+        
+        console.log('Found suggestions:', uniqueSuggestions); // Debug log
+        displaySuggestions(uniqueSuggestions, query);
+    }
+
+    // Function to display suggestions
+    function displaySuggestions(suggestions, query) {
+        currentSuggestions = suggestions;
+        highlightedIndex = -1;
+
+        let html = '';
+        
+        if (suggestions.length === 0) {
+            html = `
+                <div class="search-suggestion-item no-results">
+                    <span class="suggestion-icon">🔍</span>
+                    <span class="suggestion-text">No results found for "${query}"</span>
+                    <span class="suggestion-type">Try different keywords</span>
+                </div>
+            `;
+        } else {
+            suggestions.forEach((suggestion, index) => {
+                const icon = suggestion.match_type === 'title' ? '🎬' : '🏷️';
+                const typeText = suggestion.match_type === 'title' ? 'Title' : 'Tag';
+                
+                html += `
+                    <div class="search-suggestion-item" data-index="${index}" data-url="${suggestion.url}">
+                        <span class="suggestion-icon">${icon}</span>
+                        <span class="suggestion-text">${highlightMatch(suggestion.title, query)}</span>
+                        <span class="suggestion-type">${typeText}</span>
+                    </div>
+                `;
+            });
+        }
+
+        // Add "View All Results" option at the bottom if there are suggestions
+        if (uniqueSuggestions.length > 0) {
+            html += `
+                <div class="search-suggestion-item view-all-option" onclick="redirectToSearchPage('${query}')">
+                    <span class="suggestion-icon">📋</span>
+                    <span class="suggestion-text">View all ${uniqueSuggestions.length}+ results for "${query}"</span>
+                    <span class="suggestion-type">Full Search</span>
+                </div>
+            `;
+        }
+
+        suggestionsContainer.innerHTML = html;
+        suggestionsContainer.classList.add('active');
+
+        // Add click listeners to suggestion items (excluding special items)
+        suggestionsContainer.querySelectorAll('.search-suggestion-item:not(.no-results):not(.welcome-message):not(.redirect-option):not(.view-all-option)').forEach(item => {
+            item.addEventListener('click', function() {
+                const url = this.dataset.url;
+                if (url && url !== '#') {
+                    window.open(url, '_blank', 'noopener');
+                }
+                hideSuggestions();
+            });
+        });
+    }
+
+    // Function to hide suggestions
+    function hideSuggestions() {
+        suggestionsContainer.classList.remove('active');
+        suggestionsContainer.innerHTML = '';
+        currentSuggestions = [];
+        highlightedIndex = -1;
+    }
+
+    // Function to highlight suggestion item
+    function highlightSuggestion(index) {
+        const items = suggestionsContainer.querySelectorAll('.search-suggestion-item');
+        items.forEach(item => item.classList.remove('highlighted'));
+        
+        if (index >= 0 && index < items.length) {
+            items[index].classList.add('highlighted');
+            highlightedIndex = index;
+        }
+    }
+
+    // Search input event listener
+    searchBar.addEventListener('input', function() {
+        const query = this.value.trim();
+        
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => {
+            fetchSuggestions(query);
+        }, 200); // Reduced debounce for faster response
+    });
+
+    // Keyboard navigation
+    searchBar.addEventListener('keydown', function(e) {
+        const items = suggestionsContainer.querySelectorAll('.search-suggestion-item');
+        
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            highlightedIndex = Math.min(highlightedIndex + 1, items.length - 1);
+            highlightSuggestion(highlightedIndex);
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            highlightedIndex = Math.max(highlightedIndex - 1, -1);
+            highlightSuggestion(highlightedIndex);
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            if (highlightedIndex >= 0 && items[highlightedIndex]) {
+                const url = items[highlightedIndex].dataset.url;
+                if (url && url !== '#') {
+                    window.open(url, '_blank', 'noopener');
+                }
+                hideSuggestions();
+            } else {
+                // Submit search form normally
+                this.closest('form').submit();
+            }
+        } else if (e.key === 'Escape') {
+            hideSuggestions();
+        }
+    });
+
+    // Hide suggestions when clicking outside
+    document.addEventListener('click', function(e) {
+        if (!searchBar.contains(e.target) && !suggestionsContainer.contains(e.target)) {
+            hideSuggestions();
+        }
+    });
+
+    // Instant search page redirect like hanime.tv
+    let isRedirecting = false;
+    
+    // Function for instant search page redirect
+    function instantSearchRedirect(query = '') {
+        if (isRedirecting) return;
+        isRedirecting = true;
+        
+        const currentValue = query || searchBar.value.trim();
+        const searchUrl = currentValue ? 
+            `https://anifinder.in/search/?search=${encodeURIComponent(currentValue)}` : 
+            'https://anifinder.in/search/';
+        
+        // Instant redirect without any delay - like hanime.tv
+        window.location.href = searchUrl;
+    }
+    
+    // Instant redirect on any interaction with search bar
+    searchBar.addEventListener('focus', function() {
+        instantSearchRedirect();
+    });
+    
+    searchBar.addEventListener('click', function() {
+        instantSearchRedirect();
+    });
+    
+    // Also redirect on input for mobile devices
+    searchBar.addEventListener('input', function() {
+        // Small delay to allow typing, but still redirect quickly
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => {
+            instantSearchRedirect();
+        }, 100);
+    });
 });
 
 // Sticky Header Functionality - Always Visible
