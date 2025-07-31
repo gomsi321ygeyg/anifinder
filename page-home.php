@@ -799,6 +799,7 @@ a { color:inherit; text-decoration:none; }
     -webkit-overflow-scrolling: touch;
     scroll-snap-type: x mandatory;
     width: 100%;
+    touch-action: pan-x pan-y; /* Allow both horizontal and vertical touch actions */
 }
 
 .scroll-container::-webkit-scrollbar {
@@ -820,6 +821,7 @@ a { color:inherit; text-decoration:none; }
     margin: 0;
     transition: transform .13s, border-color .13s;
     flex-shrink: 0;
+    pointer-events: auto; /* Ensure child elements can be interacted with */
 }
 
 .scroll-item:hover {
@@ -1870,13 +1872,16 @@ document.querySelectorAll('.scroll-container').forEach(container => {
 
     // Mouse events for desktop
     container.addEventListener('mousedown', (e) => {
-        isDown = true;
-        container.style.cursor = 'grabbing';
-        startX = e.pageX - container.offsetLeft;
-        scrollLeft = container.scrollLeft;
-        cancelAnimationFrame(animationId);
-        isScrolling = true;
-        e.preventDefault();
+        // Only handle mouse drag if clicking directly on the container, not on child elements
+        if (e.target === container || e.target.closest('.scroll-item') === null) {
+            isDown = true;
+            container.style.cursor = 'grabbing';
+            startX = e.pageX - container.offsetLeft;
+            scrollLeft = container.scrollLeft;
+            cancelAnimationFrame(animationId);
+            isScrolling = true;
+            e.preventDefault();
+        }
     });
 
     container.addEventListener('mouseleave', () => {
@@ -1893,50 +1898,73 @@ document.querySelectorAll('.scroll-container').forEach(container => {
 
     container.addEventListener('mousemove', (e) => {
         if (!isDown) return;
+        e.preventDefault();
         const x = e.pageX - container.offsetLeft;
         const walk = (x - startX) * 2.5; // More responsive mouse dragging
         container.scrollLeft = scrollLeft - walk;
-        e.preventDefault();
     });
 
     // Only handle horizontal scrolling when shift is held - no wheel listener for posts
     // This ensures vertical scrolling works normally everywhere
 
-    // Enhanced touch events for mobile
+    // Enhanced touch events for mobile with proper scroll direction detection
     let startTouchX;
+    let startTouchY;
     let isTouching = false;
     let lastTouchX;
     let touchVelocity = 0;
     let lastTouchTime = 0;
     let touchStartTime = 0;
+    let scrollDirection = null; // 'horizontal', 'vertical', or null
+    let hasMovedHorizontally = false;
 
     container.addEventListener('touchstart', (e) => {
         isTouching = true;
         startTouchX = e.touches[0].clientX;
+        startTouchY = e.touches[0].clientY;
         lastTouchX = startTouchX;
         touchVelocity = 0;
         touchStartTime = Date.now();
         cancelAnimationFrame(animationId);
         isScrolling = true;
+        scrollDirection = null;
+        hasMovedHorizontally = false;
     });
 
     container.addEventListener('touchmove', (e) => {
         if (!isTouching) return;
+        
         const currentTouchX = e.touches[0].clientX;
+        const currentTouchY = e.touches[0].clientY;
         const currentTime = Date.now();
+        
+        const diffX = Math.abs(currentTouchX - startTouchX);
+        const diffY = Math.abs(currentTouchY - startTouchY);
         const diff = lastTouchX - currentTouchX;
         const timeDiff = currentTime - lastTouchTime;
         
-        // Only prevent default if we're actually scrolling horizontally
-        if (Math.abs(diff) > 5) {
-            e.preventDefault();
+        // Determine scroll direction only on first significant movement
+        if (scrollDirection === null && (diffX > 10 || diffY > 10)) {
+            if (diffX > diffY * 1.5) {
+                scrollDirection = 'horizontal';
+            } else if (diffY > diffX * 1.5) {
+                scrollDirection = 'vertical';
+            }
         }
         
-        if (timeDiff > 0) {
-            touchVelocity = diff / timeDiff * 20; // Calculate velocity with higher sensitivity
+        // Only handle horizontal scrolling if we've determined it's a horizontal gesture
+        if (scrollDirection === 'horizontal') {
+            e.preventDefault(); // Only prevent default for horizontal scrolling
+            hasMovedHorizontally = true;
+            
+            if (timeDiff > 0) {
+                touchVelocity = diff / timeDiff * 20; // Calculate velocity with higher sensitivity
+            }
+            
+            container.scrollLeft += diff * 2.5; // More responsive touch scrolling
         }
+        // For vertical scrolling or undetermined direction, let the browser handle it naturally
         
-        container.scrollLeft += diff * 2.5; // More responsive touch scrolling
         lastTouchX = currentTouchX;
         lastTouchTime = currentTime;
     });
@@ -1945,8 +1973,8 @@ document.querySelectorAll('.scroll-container').forEach(container => {
         isTouching = false;
         isScrolling = false;
         
-        // Responsive momentum scrolling
-        if (Math.abs(touchVelocity) > 0.5) {
+        // Only apply momentum scrolling if we were doing horizontal scrolling
+        if (hasMovedHorizontally && Math.abs(touchVelocity) > 0.5) {
             const momentum = () => {
                 container.scrollLeft += touchVelocity;
                 touchVelocity *= 0.88; // Faster decay for more responsive feel
@@ -1956,6 +1984,10 @@ document.querySelectorAll('.scroll-container').forEach(container => {
             };
             momentum();
         }
+        
+        // Reset flags
+        scrollDirection = null;
+        hasMovedHorizontally = false;
     });
 
     // YouTube-style smooth scroll behavior
