@@ -590,44 +590,22 @@ a { color:inherit; text-decoration:none; }
 .carousel-container { 
     margin-top: 60px; 
     padding: 0; 
-    display: flex;
-    flex-wrap: nowrap;
-    overflow-x: auto; 
-    overflow-y: hidden; 
+    overflow: hidden; 
     position: relative; 
     width: 100vw; 
-    overscroll-behavior-x: none; /* Prevent horizontal over-scrolling */
-    overscroll-behavior-y: auto; /* Allow vertical scroll chaining */
-    scroll-behavior: smooth;
-    -webkit-overflow-scrolling: touch; /* Smooth momentum on iOS/Touch */
-    touch-action: pan-x pan-y; /* Allow both horizontal carousel and vertical page scrolling */
-    scrollbar-width: none; /* Firefox */
-    -ms-overflow-style: none; /* IE/Edge */
-    scroll-snap-type: x mandatory; /* Enable horizontal scroll snapping */
-    cursor: grab; /* Show grab cursor for drag interaction */
-    user-select: none; /* Prevent text selection during drag */
-}
-
-.carousel-container:active {
-    cursor: grabbing; /* Show grabbing cursor when dragging */
-}
-
-.carousel-container::-webkit-scrollbar {
-    display: none; /* Chrome, Safari, Opera */
+    height: 100vh;
 }
 
 .carousel { 
     display: flex; 
-    flex-wrap: nowrap;
-    /* Remove fixed width - let content determine width */
+    width: 500vw; /* 5 slides * 100vw each */
+    transition: transform 0.7s cubic-bezier(0.4, 0, 0.2, 1); /* Smooth slide transitions */
 }
 .slide {
   min-width: 100vw;
   max-width: 100vw;
   width: 100vw;
-  flex: 0 0 auto; /* Prevent items from shrinking, allow natural sizing */
-  scroll-snap-align: start; /* Snap to start of each slide */
-  scroll-snap-stop: always; /* Force stop at each slide */
+  flex-shrink: 0; /* Prevent slides from shrinking */
   height: 100vh;
   min-height: unset;
   max-height: unset;
@@ -1565,250 +1543,93 @@ mobilemenu.onclick = function(e) { if(e.target.tagName==="A"){ closeMenu(); } };
 document.body.addEventListener('mousedown',function(e){
     if(menuOpen && !mobilemenu.contains(e.target) && !hamburger.contains(e.target)) closeMenu();
 });
-// Scroll-based Carousel logic with proper horizontal overflow
+// Clean Transform-based Carousel Logic
 const carousel = document.getElementById('carousel');
-const carouselContainer = document.querySelector('.carousel-container');
 const slides = carousel.children;
 let currentIndex = 0;
-const slideCount = 5; // Exactly 5 slides
+const slideCount = slides.length;
 let autoScrollInterval;
-let autoScrollStopped = false;
-let isManualScrolling = false;
 
-// Get slide width
-function getSlideWidth() {
-    return window.innerWidth;
+// Move to a given slide index using transform
+function goToSlide(idx) {
+    carousel.style.transform = `translateX(-${idx * 100}vw)`;
 }
 
-// Go to specific slide by index (0-4) using scrollLeft
-function goToSlide(index, useTransition = true) {
-    // Enforce boundaries
-    if (index < 0) index = 0;
-    if (index >= slideCount) index = slideCount - 1;
-    
-    currentIndex = index;
-    const scrollPosition = index * getSlideWidth();
-    
-    if (useTransition) {
-        carouselContainer.scrollTo({
-            left: scrollPosition,
-            behavior: 'smooth'
-        });
-    } else {
-        carouselContainer.scrollLeft = scrollPosition;
+// Advance to next slide (without looping past last)
+function nextSlide() {
+    if (currentIndex < slideCount - 1) {
+        currentIndex++;
+        goToSlide(currentIndex);
     }
 }
 
-// Auto-scroll function - goes through all 5 slides once using scrollBy
+// Go to previous slide (with wrapping)
+function prevSlide() {
+    currentIndex = (currentIndex - 1 + slideCount) % slideCount;
+    goToSlide(currentIndex);
+}
+
+// Auto-scroll: advance one slide every 2 seconds, stop after last slide
 function startAutoScroll() {
-    if (autoScrollStopped) return;
-    
-    let autoScrollCount = 0;
-    
     autoScrollInterval = setInterval(() => {
-        // Only stop auto-scroll if manually stopped
-        if (autoScrollStopped || isManualScrolling) {
+        if (currentIndex < slideCount - 1) {
+            currentIndex++;
+            goToSlide(currentIndex);
+        } else {
+            // Stop auto-scroll after reaching the last slide
             clearInterval(autoScrollInterval);
-            autoScrollInterval = null;
-            return;
         }
-        
-        // Auto-scroll to next slide
-        const slideWidth = getSlideWidth();
-        carouselContainer.scrollBy({ left: slideWidth, behavior: 'smooth' });
-        
-        autoScrollCount++;
-        
-        if (autoScrollCount >= 4) {
-            // Stop after 4 moves (slide 1→2→3→4→5)
-            clearInterval(autoScrollInterval);
-            autoScrollInterval = null;
-        }
-    }, 2000); // Every 2 seconds (2000ms)
+    }, 2000);  // 2000ms = 2 seconds
 }
 
-// Stop auto-scroll permanently
-function stopAutoScroll() {
-    if (autoScrollInterval) {
+// Start auto-scroll on page load
+startAutoScroll();
+
+// Touch/Swipe support: clear auto-scroll on swipe and navigate
+let startX = 0, isDragging = false;
+
+carousel.addEventListener('touchstart', function(e) {
+    isDragging = true;
+    startX = e.touches[0].clientX;
+});
+
+carousel.addEventListener('touchmove', function(e) {
+    if (!isDragging) return;
+    let dx = e.touches[0].clientX - startX;
+    if (Math.abs(dx) > 50) {
         clearInterval(autoScrollInterval);
-        autoScrollInterval = null;
-    }
-    autoScrollStopped = true;
-}
-
-// Update current index based on scroll position
-function updateCurrentIndex() {
-    const scrollLeft = carouselContainer.scrollLeft;
-    const slideWidth = getSlideWidth();
-    const newIndex = Math.round(scrollLeft / slideWidth);
-    
-    // Enforce boundaries
-    if (newIndex >= 0 && newIndex < slideCount) {
-        currentIndex = newIndex;
-    }
-}
-
-// Simplified scroll detection for native scrolling
-let scrollTimeout;
-let lastScrollLeft = 0;
-
-carouselContainer.addEventListener('scroll', () => {
-    const currentScrollLeft = carouselContainer.scrollLeft;
-    
-    // Detect any manual scrolling movement
-    if (Math.abs(currentScrollLeft - lastScrollLeft) > 5) {
-        if (!isManualScrolling) {
-            isManualScrolling = true;
-            stopAutoScroll();
-        }
-        
-        lastScrollLeft = currentScrollLeft;
-        
-        // Optional: Add scroll snapping after user stops scrolling
-        clearTimeout(scrollTimeout);
-        scrollTimeout = setTimeout(() => {
-            isManualScrolling = false;
-            // Snap to nearest slide
-            updateCurrentIndex();
-            goToSlide(currentIndex, true);
-        }, 300);
+        if (dx > 0) prevSlide();
+        else nextSlide();
+        isDragging = false;
     }
 });
 
-// Drag-to-scroll functionality (mouse)
-let isDown = false;
-let startX;
-let scrollLeft;
-
-carouselContainer.addEventListener('mousedown', (e) => {
-    isDown = true;
-    carouselContainer.style.cursor = 'grabbing';
-    startX = e.pageX - carouselContainer.offsetLeft;
-    scrollLeft = carouselContainer.scrollLeft;
-    stopAutoScroll();
+carousel.addEventListener('touchend', function() {
+    isDragging = false;
 });
 
-carouselContainer.addEventListener('mouseleave', () => {
-    isDown = false;
-    carouselContainer.style.cursor = 'grab';
-});
-
-carouselContainer.addEventListener('mouseup', () => {
-    isDown = false;
-    carouselContainer.style.cursor = 'grab';
-});
-
-carouselContainer.addEventListener('mousemove', (e) => {
-    if (!isDown) return;
-    e.preventDefault();
-    const x = e.pageX - carouselContainer.offsetLeft;
-    const walk = (x - startX) * 2; // scroll-fast multiplier
-    carouselContainer.scrollLeft = scrollLeft - walk;
-});
-
-// Touch event handling for mobile
-let touchStartX = 0;
-let touchStartY = 0;
-
-carouselContainer.addEventListener('touchstart', (e) => {
-    touchStartX = e.touches[0].clientX;
-    touchStartY = e.touches[0].clientY;
-    stopAutoScroll();
-}, { passive: true });
-
-carouselContainer.addEventListener('touchmove', (e) => {
-    // Let the browser handle touch scrolling naturally
-    const touchCurrentX = e.touches[0].clientX;
-    const touchCurrentY = e.touches[0].clientY;
-    const deltaX = Math.abs(touchCurrentX - touchStartX);
-    const deltaY = Math.abs(touchCurrentY - touchStartY);
-    
-    // Only stop auto-scroll if this is primarily horizontal movement
-    if (deltaX > deltaY * 1.5 && deltaX > 20) {
-        isManualScrolling = true;
-    }
-}, { passive: true });
-
-// Wheel event for touchpad/mouse wheel - only handle horizontal scrolling
-carouselContainer.addEventListener('wheel', (e) => {
-    // Only handle horizontal scroll if it's significantly more horizontal than vertical
-    if (Math.abs(e.deltaX) > Math.abs(e.deltaY) * 2) {
-        // Clear horizontal scroll detected - prevent default and handle manually
-        e.preventDefault();
-        stopAutoScroll();
-        isManualScrolling = true;
-        
-        updateCurrentIndex();
-        
-        if (e.deltaX > 30) {
-            // Scroll right (threshold to prevent oversensitivity)
-            goToSlide(currentIndex + 1, true);
-        } else if (e.deltaX < -30) {
-            // Scroll left (threshold to prevent oversensitivity)
-            goToSlide(currentIndex - 1, true);
-        }
-        
-        setTimeout(() => {
-            isManualScrolling = false;
-        }, 500);
-    }
-    // For vertical scrolling or mixed scrolling, let browser handle it naturally
-}, { passive: false });
-
-// Arrow key navigation using scrollBy
+// Arrow key support: clear auto-scroll and navigate
 document.addEventListener('keydown', (e) => {
     if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
-        e.preventDefault();
-        stopAutoScroll();
-        isManualScrolling = true;
-        
-        const slideWidth = getSlideWidth();
-        
+        clearInterval(autoScrollInterval);
         if (e.key === 'ArrowLeft') {
-            carouselContainer.scrollBy({ left: -slideWidth, behavior: 'smooth' });
+            prevSlide();
         } else if (e.key === 'ArrowRight') {
-            carouselContainer.scrollBy({ left: slideWidth, behavior: 'smooth' });
+            nextSlide();
         }
-        
-        setTimeout(() => {
-            isManualScrolling = false;
-        }, 500);
+        e.preventDefault();
     }
 });
 
-// Handle window resize
-window.addEventListener('resize', () => {
-    // Recalculate and maintain current position
-    setTimeout(() => {
-        goToSlide(currentIndex, false);
-    }, 100);
-});
-
-// Simple boundary enforcement for scroll-based carousel
-function ensureBoundaries() {
-    const maxScroll = (slideCount - 1) * getSlideWidth();
-    
-    if (carouselContainer.scrollLeft < 0) {
-        carouselContainer.scrollLeft = 0;
-    } else if (carouselContainer.scrollLeft > maxScroll) {
-        carouselContainer.scrollLeft = maxScroll;
+// Cancel auto-scroll on horizontal wheel (e.g. trackpad swipe)
+carousel.addEventListener('wheel', function(e) {
+    if (Math.abs(e.deltaX) > 0) {
+        clearInterval(autoScrollInterval);
     }
-}
-
-// Initialize carousel
-document.addEventListener('DOMContentLoaded', () => {
-    // Ensure carousel starts at the beginning
-    carouselContainer.scrollLeft = 0;
-    lastScrollLeft = 0;
-    
-    // Set focus so arrow keys work
-    carouselContainer.setAttribute('tabindex', '0');
-    
-    // Start auto-scroll after a brief delay
-    setTimeout(() => {
-        startAutoScroll();
-    }, 1000);
 });
+
+// Ensure correct positioning on resize
+window.addEventListener('resize', () => goToSlide(currentIndex));
 </script>
 
 <!-- Content Sections -->
