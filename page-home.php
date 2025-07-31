@@ -1613,14 +1613,14 @@ function startAutoScroll() {
             return;
         }
         
-        autoScrollCount++;
-        
         // Auto-scroll to next slide
         const slideWidth = getSlideWidth();
         carouselContainer.scrollBy({ left: slideWidth, behavior: 'smooth' });
         
-        if (autoScrollCount >= slideCount - 1) {
-            // Stop after moving through all slides (4 moves: slide 1→2→3→4→5)
+        autoScrollCount++;
+        
+        if (autoScrollCount >= 4) {
+            // Stop after 4 moves (slide 1→2→3→4→5)
             clearInterval(autoScrollInterval);
             autoScrollInterval = null;
         }
