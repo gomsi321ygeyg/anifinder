@@ -1615,16 +1615,16 @@ function startAutoScroll() {
         
         autoScrollCount++;
         
+        // Auto-scroll to next slide
+        const slideWidth = getSlideWidth();
+        carouselContainer.scrollBy({ left: slideWidth, behavior: 'smooth' });
+        
         if (autoScrollCount >= slideCount - 1) {
-            // Stop after reaching the 5th slide (4 moves from slide 1 to 5)
+            // Stop after moving through all slides (4 moves: slide 1→2→3→4→5)
             clearInterval(autoScrollInterval);
             autoScrollInterval = null;
-        } else {
-            // Auto-scroll to next slide
-            const slideWidth = getSlideWidth();
-            carouselContainer.scrollBy({ left: slideWidth, behavior: 'smooth' });
         }
-    }, 2000); // Every 2 seconds
+    }, 2000); // Every 2 seconds (2000ms)
 }
 
 // Stop auto-scroll permanently
